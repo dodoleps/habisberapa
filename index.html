@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Habis Berapa</title>
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Habis Berapa">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Layar PIN -->
+  <section id="pin-screen" class="pin-screen" hidden>
+    <div class="pin-box">
+      <img src="icons/icon-192.png" alt="" class="pin-logo">
+      <h1>Habis Berapa</h1>
+      <p>Masukkan PIN</p>
+      <div class="pin-dots" id="pin-dots"></div>
+      <p class="pin-error" id="pin-error"></p>
+      <div class="pin-pad" id="pin-pad"></div>
+    </div>
+  </section>
+
+  <div id="app" hidden>
+    <header class="topbar">
+      <div>
+        <div class="topbar-label">Total semua dompet</div>
+        <div class="topbar-total" id="total-saldo">Rp0</div>
+      </div>
+      <button class="icon-btn" id="btn-refresh" aria-label="Muat ulang">⟳</button>
+    </header>
+    <div class="demo-banner" id="demo-banner" hidden>Mode demo: data hanya tersimpan di browser ini.</div>
+
+    <main>
+      <!-- BERANDA -->
+      <section class="view" id="view-home">
+        <div class="month-strip" id="home-summary"></div>
+        <div class="section-head">
+          <h2>Dompet</h2>
+          <button class="link-btn" id="btn-split">Bagi uang</button>
+        </div>
+        <div class="wallet-grid" id="wallet-grid"></div>
+        <div class="section-head" id="recent-head" hidden>
+          <h2>Baru dicatat</h2>
+        </div>
+        <div class="recent" id="recent"></div>
+        <div class="hint" id="home-hint">
+          Tekan tombol mikrofon lalu bicara, misalnya:<br>
+          <em>“makan siang 25 ribu, parkir 2 ribu, ambil dari dompet uang makan”</em><br>
+          <em>“gajian 8 juta”</em> · <em>“pindahkan 1 juta dari utama ke tabungan”</em>
+        </div>
+      </section>
+
+      <!-- RIWAYAT -->
+      <section class="view" id="view-history" hidden>
+        <div class="filters">
+          <input type="search" id="f-search" placeholder="Cari keterangan…" autocomplete="off">
+          <div class="filter-row">
+            <select id="f-month"></select>
+            <select id="f-wallet"></select>
+            <select id="f-cat"></select>
+          </div>
+        </div>
+        <div id="history-list"></div>
+        <button class="fab-secondary" id="btn-add-manual">+ Tambah manual</button>
+      </section>
+
+      <!-- LAPORAN -->
+      <section class="view" id="view-report" hidden>
+        <div class="report-month">
+          <button class="icon-btn" id="r-prev" aria-label="Bulan sebelumnya">‹</button>
+          <strong id="r-month"></strong>
+          <button class="icon-btn" id="r-next" aria-label="Bulan berikutnya">›</button>
+        </div>
+        <div class="month-strip" id="r-summary"></div>
+        <h2>Pengeluaran per kategori</h2>
+        <div id="r-cats"></div>
+      </section>
+
+      <!-- PENGATURAN -->
+      <section class="view" id="view-settings" hidden>
+        <div class="section-head"><h2>Dompet</h2><button class="link-btn" id="btn-add-wallet">+ Dompet</button></div>
+        <div class="list" id="s-wallets"></div>
+        <div class="section-head"><h2>Kategori pengeluaran</h2><button class="link-btn" data-add-cat="keluar">+ Kategori</button></div>
+        <div class="list" id="s-cats-keluar"></div>
+        <div class="section-head"><h2>Kategori pemasukan</h2><button class="link-btn" data-add-cat="masuk">+ Kategori</button></div>
+        <div class="list" id="s-cats-masuk"></div>
+        <h2>Aplikasi</h2>
+        <div class="list">
+          <div class="list-item"><span id="s-conn"></span></div>
+          <button class="list-item danger-text" id="btn-lock">Kunci aplikasi (minta PIN lagi)</button>
+          <button class="list-item danger-text" id="btn-reset-demo" hidden>Hapus semua data demo</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Tombol suara -->
+    <div class="voice-bar" id="voice-bar">
+      <button class="kbd-btn" id="btn-type" aria-label="Ketik">⌨</button>
+      <button class="mic-btn" id="btn-mic" aria-label="Rekam suara">
+        <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      </button>
+      <span class="voice-status" id="voice-status"></span>
+    </div>
+
+    <nav class="tabbar">
+      <button data-tab="home" class="active"><span>🏠</span>Beranda</button>
+      <button data-tab="history"><span>📜</span>Riwayat</button>
+      <button data-tab="report"><span>📊</span>Laporan</button>
+      <button data-tab="settings"><span>⚙️</span>Atur</button>
+    </nav>
+  </div>
+
+  <!-- Lembar bawah (modal) serbaguna -->
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" id="sheet"></div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="logic.js"></script>
+  <script src="mock.js"></script>
+  <script src="recorder.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

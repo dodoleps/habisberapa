@@ -496,12 +496,22 @@
         toast('Tidak ada transaksi yang dikenali. Coba ulangi dengan menyebut nominalnya.', 4000);
       }
     } catch (e) {
-      toast(e.message, 5000);
+      offerRetry(req, e.message);
     } finally {
       busy = false;
       $('btn-mic').classList.remove('busy');
       setVoiceStatus('');
     }
+  }
+
+  /** Simpan rekaman/teks yang gagal diproses supaya bisa dicoba lagi tanpa bicara ulang. */
+  function offerRetry(req, msg) {
+    openSheet('<h3>Belum berhasil diproses</h3><p>' + esc(msg) + '</p>' +
+      '<p class="transcript">' + (req.audio ? 'Rekaman suara Anda masih disimpan.' : 'Teks: “' + esc(req.text) + '”') + '</p>' +
+      '<div class="btn-row"><button class="btn" id="rt-no">Buang</button><button class="btn primary" id="rt-yes">Coba lagi</button></div>', (el) => {
+      el.querySelector('#rt-no').onclick = closeSheet;
+      el.querySelector('#rt-yes').onclick = () => { closeSheet(); processAi(req); };
+    });
   }
 
   /** Beri tahu kalau dompet yang baru dipakai jadi menipis/habis. */

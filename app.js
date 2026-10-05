@@ -216,7 +216,9 @@
       $('s-timing').innerHTML = '<span>⏱ Proses terakhir: <b>' + secs(lt.total) + '</b><br><small>' +
         (lt.conv ? 'siapkan rekaman ' + secs(lt.conv) + ' (' + lt.kb + ' KB) · ' : '') +
         (lt.ai != null ? 'AI ' + secs(lt.ai) + ' · server & internet ' + secs(lt.total - lt.ai) : '') +
-        (lt.model ? '<br>model ' + esc(lt.model) + (lt.attempts > 1 ? ', ' + lt.attempts + ' kali coba' : '') : '') + '</small></span>';
+        (lt.model ? '<br>model ' + esc(lt.model) : '') +
+        (lt.log.length > 1 ? '<br>percobaan: ' + lt.log.map((x) => esc(x.m.replace('gemini-', '')) + ' ' +
+          (x.s === 200 ? '✓' : x.s) + ' ' + secs(x.ms)).join(' → ') : '') + '</small></span>';
     }
     $('btn-reset-demo').hidden = !DEMO;
     $('btn-lock').hidden = DEMO;
@@ -500,7 +502,7 @@
       const out = await api('ai', req);
       const totalMs = Date.now() - t0;
       S.lastTiming = { total: totalMs, ai: out.timing && out.timing.ai_ms, model: out.timing && out.timing.model,
-        attempts: out.timing && out.timing.attempts, conv: req.audio ? S.convMs : 0, kb: req.audio ? Math.round(req.audio.length * 0.75 / 1024) : 0 };
+        attempts: out.timing && out.timing.attempts, log: (out.timing && out.timing.log) || [], conv: req.audio ? S.convMs : 0, kb: req.audio ? Math.round(req.audio.length * 0.75 / 1024) : 0 };
       S.transkrip = out.transkrip || '';
       S.newIds = new Set(out.saved.map((t) => t.id));
       if (out.state) {

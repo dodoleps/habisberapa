@@ -5,6 +5,7 @@
   const DEMO = !API_URL;
   const PIN_KEY = 'hb_pin';
   const MAX_REC_SEC = 60;
+  const BACKUP_AFTER_MS = 9000; // jalur cadangan dikirim kalau 9 detik belum ada jawaban
 
   const S = { wallets: [], categories: [], transactions: [], newIds: new Set(), transkrip: '',
     tab: 'home', reportMonth: thisMonth(), filter: { q: '', month: thisMonth(), wallet: '', cat: '' } };
@@ -216,7 +217,7 @@
       $('s-timing').innerHTML = '<span>⏱ Proses terakhir: <b>' + secs(lt.total) + '</b><br><small>' +
         (lt.conv ? 'siapkan rekaman ' + secs(lt.conv) + ' (' + lt.kb + ' KB) · ' : '') +
         (lt.ai != null ? 'AI ' + secs(lt.ai) + ' · server & internet ' + secs(lt.total - lt.ai) : '') +
-        (lt.model ? '<br>model ' + esc(lt.model) : '') +
+        (lt.model ? '<br>model ' + esc(lt.model) + (lt.lane === 1 ? ' (jalur cadangan)' : '') : '') +
         (lt.log.length > 1 ? '<br>percobaan: ' + lt.log.map((x) => esc(x.m.replace('gemini-', '')) + ' ' +
           (x.s === 200 ? '✓' : x.s) + ' ' + secs(x.ms)).join(' → ') : '') + '</small></span>';
     }
@@ -492,6 +493,41 @@
     await processAi({ audio: payload.data, mime: payload.mime });
   }
 
+  /**
+   * Kirim ke server lewat jalur utama. Kalau belum ada jawaban dalam BACKUP_AFTER_MS (atau jalur utama gagal),
+   * kirim juga lewat jalur cadangan yang memakai model AI lain. Yang selesai duluan dipakai.
+   * Server memastikan transaksi hanya tersimpan sekali (lewat reqId yang sama).
+   */
+  function aiWithBackup(req) {
+    const reqId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    return new Promise((resolve, reject) => {
+      let finished = false, pending = 0, backupSent = false, lastErr = null, timer = null;
+      const send = (lane) => {
+        pending++;
+        api('ai', { ...req, reqId, lane }).then((out) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          resolve(out);
+        }, (err) => {
+          pending--;
+          lastErr = err;
+          if (finished) return;
+          if (err.code === 'pin' || err.code === 'locked') { finished = true; clearTimeout(timer); reject(err); return; }
+          if (!backupSent && !DEMO) { clearTimeout(timer); backup(); return; }
+          if (pending === 0) { finished = true; reject(lastErr); }
+        });
+      };
+      const backup = () => {
+        if (backupSent || finished) return;
+        backupSent = true;
+        send(1);
+      };
+      send(0);
+      if (!DEMO) timer = setTimeout(backup, BACKUP_AFTER_MS);
+    });
+  }
+
   async function processAi(req) {
     busy = true;
     $('btn-mic').classList.add('busy');
@@ -499,10 +535,10 @@
     setVoiceStatus('Memproses… 0 dtk');
     const tick = setInterval(() => setVoiceStatus('Memproses… ' + Math.floor((Date.now() - t0) / 1000) + ' dtk'), 1000);
     try {
-      const out = await api('ai', req);
+      const out = await aiWithBackup(req);
       const totalMs = Date.now() - t0;
       S.lastTiming = { total: totalMs, ai: out.timing && out.timing.ai_ms, model: out.timing && out.timing.model,
-        attempts: out.timing && out.timing.attempts, log: (out.timing && out.timing.log) || [], conv: req.audio ? S.convMs : 0, kb: req.audio ? Math.round(req.audio.length * 0.75 / 1024) : 0 };
+        attempts: out.timing && out.timing.attempts, lane: out.timing && out.timing.lane, log: (out.timing && out.timing.log) || [], conv: req.audio ? S.convMs : 0, kb: req.audio ? Math.round(req.audio.length * 0.75 / 1024) : 0 };
       S.transkrip = out.transkrip || '';
       S.newIds = new Set(out.saved.map((t) => t.id));
       if (out.state) {

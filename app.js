@@ -13,6 +13,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rp = (n) => (n < 0 ? '-' : '') + 'Rp' + Math.abs(Math.round(n)).toLocaleString('id-ID');
+  const secs = (ms) => (ms / 1000).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' dtk';
   const digits = (s) => Number(String(s).replace(/\D/g, '')) || 0;
 
   function thisMonth() { return todayStr().slice(0, 7); }
@@ -209,6 +210,14 @@
         (ICON[c.nama] || '•') + ' ' + esc(c.nama) + '</span><small>›</small></button>').join('');
     });
     $('s-conn').innerHTML = DEMO ? '🟡 Mode demo (belum tersambung ke Google Sheets)' : '🟢 Tersambung ke Google Sheets';
+    const lt = S.lastTiming;
+    $('s-timing').hidden = !lt;
+    if (lt) {
+      $('s-timing').innerHTML = '<span>⏱ Proses terakhir: <b>' + secs(lt.total) + '</b><br><small>' +
+        (lt.conv ? 'siapkan rekaman ' + secs(lt.conv) + ' (' + lt.kb + ' KB) · ' : '') +
+        (lt.ai != null ? 'AI ' + secs(lt.ai) + ' · server & internet ' + secs(lt.total - lt.ai) : '') +
+        (lt.model ? '<br>model ' + esc(lt.model) + (lt.attempts > 1 ? ', ' + lt.attempts + ' kali coba' : '') : '') + '</small></span>';
+    }
     $('btn-reset-demo').hidden = !DEMO;
     $('btn-lock').hidden = DEMO;
   }
@@ -474,23 +483,39 @@
     $('btn-mic').classList.remove('recording');
     const blob = await window.HBRecorder.stop();
     if (!blob || Date.now() - recStart < 700) { setVoiceStatus(''); toast('Rekaman terlalu pendek'); return; }
+    const tConv = Date.now();
+    setVoiceStatus('Menyiapkan rekaman…');
     const payload = await window.HBRecorder.toPayload(blob);
+    S.convMs = Date.now() - tConv;
     await processAi({ audio: payload.data, mime: payload.mime });
   }
 
   async function processAi(req) {
     busy = true;
     $('btn-mic').classList.add('busy');
-    setVoiceStatus('Memproses…');
+    const t0 = Date.now();
+    setVoiceStatus('Memproses… 0 dtk');
+    const tick = setInterval(() => setVoiceStatus('Memproses… ' + Math.floor((Date.now() - t0) / 1000) + ' dtk'), 1000);
     try {
       const out = await api('ai', req);
+      const totalMs = Date.now() - t0;
+      S.lastTiming = { total: totalMs, ai: out.timing && out.timing.ai_ms, model: out.timing && out.timing.model,
+        attempts: out.timing && out.timing.attempts, conv: req.audio ? S.convMs : 0, kb: req.audio ? Math.round(req.audio.length * 0.75 / 1024) : 0 };
       S.transkrip = out.transkrip || '';
       S.newIds = new Set(out.saved.map((t) => t.id));
-      await refresh(true);
+      if (out.state) {
+        // Server sudah mengirim data terbaru, tidak perlu meminta ulang.
+        S.wallets = out.state.wallets;
+        S.categories = out.state.categories;
+        S.transactions = out.state.transactions;
+        render();
+      } else {
+        await refresh(true);
+      }
       if (S.tab !== 'home') setTab('home');
       if (out.saved.length) {
         const total = out.saved.reduce((s, t) => s + t.nominal, 0);
-        toast(out.saved.length + ' transaksi tersimpan (' + rp(total) + '). Ketuk untuk koreksi.');
+        toast(out.saved.length + ' transaksi tersimpan (' + rp(total) + ') · ' + secs(totalMs) + '\nKetuk untuk koreksi.');
         warnWallets(out.saved);
       } else {
         toast('Tidak ada transaksi yang dikenali. Coba ulangi dengan menyebut nominalnya.', 4000);
@@ -498,6 +523,7 @@
     } catch (e) {
       offerRetry(req, e.message);
     } finally {
+      clearInterval(tick);
       busy = false;
       $('btn-mic').classList.remove('busy');
       setVoiceStatus('');

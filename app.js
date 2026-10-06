@@ -45,14 +45,17 @@
   // ---------- Komunikasi dengan server ----------
 
   /** Aksi yang dikirim ke server. Semua aksi lain (data) disimpan di HP lewat HBStore. */
-  const SERVER_ACTIONS = { login: 1, parse: 1, legacyState: 1, users: 1, addUser: 1, removeUser: 1, ping: 1, me: 1 };
+  const SERVER_ACTIONS = { login: 1, parse: 1, legacyState: 1, feedback: 1, stats: 1, me: 1 };
+  // Server lama (Google Apps Script) memakai satu alamat + nama aksi di isi permintaan;
+  // server baru (Cloudflare Worker) memakai alamat per aksi, mis. https://…workers.dev/parse
+  const LEGACY_SERVER = /script\.google\.com/.test(API_URL);
 
   async function api(action, req) {
     if (!SERVER_ACTIONS[action]) return window.HBStore.call(action, req);
     if (DEMO) throw new Error('Mode demo: fitur ini butuh server.');
     let res;
     try {
-      res = await fetch(API_URL, {
+      res = await fetch(LEGACY_SERVER ? API_URL : API_URL.replace(/\/+$/, '') + '/' + action, {
         method: 'POST',
         // text/plain supaya tidak memicu pemeriksaan CORS tambahan dari Apps Script
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -345,15 +348,15 @@
         (lt.log.length > 1 ? '<br>percobaan: ' + lt.log.map((x) => esc(x.m.replace('gemini-', '')) + ' ' +
           (x.s === 200 ? '✓' : x.s) + ' ' + secs(x.ms)).join(' → ') : '') + '</small></span>';
     }
-    $('btn-reset-demo').hidden = !DEMO;
+
     const me = session();
     $('btn-logout').hidden = DEMO || !me;
     $('s-account').hidden = DEMO || !me;
     if (me) $('s-account').innerHTML = '<span>👤 ' + esc(me.nama || me.email) + '<br><small>' + esc(me.email) +
       (me.owner ? ' · pemilik' : '') + '</small></span>';
-    $('s-testers-wrap').hidden = DEMO || !me || !me.owner;
-    $('btn-migrate').hidden = DEMO || !me;
-    if (me && me.owner) renderTesters();
+    $('btn-migrate').hidden = DEMO || !me || !LEGACY_SERVER;
+    $('btn-feedback').hidden = DEMO || !me || LEGACY_SERVER;
+    $('btn-stats').hidden = DEMO || !me || !me.owner || LEGACY_SERVER;
   }
 
   // ---------- Tab ----------
@@ -833,41 +836,52 @@
     }
   }
 
-  // ---------- Penguji (khusus pemilik) ----------
+  // ---------- Masukan & statistik ----------
 
-  async function renderTesters() {
-    try {
-      const users = await api('users');
-      $('s-testers').innerHTML = users.map((u) =>
-        '<div class="list-item"><span>' + esc(u.nama || u.email) + '<br><small>' + esc(u.email) + '</small></span>' +
-        (u.owner ? '<small>pemilik</small>' : '<button class="link-btn danger-text" data-remove-user="' + esc(u.email) + '">Hapus</button>') +
-        '</div>').join('');
-      $('s-testers').querySelectorAll('[data-remove-user]').forEach((b) => {
-        b.onclick = async () => {
-          const email = b.dataset.removeUser;
-          if (await confirmBox('Cabut akses ' + email + '? Datanya tetap tersimpan di Google Sheets.', 'Cabut')) {
-            await run(() => api('removeUser', { email }), 'Akses dicabut');
-          }
-        };
-      });
-    } catch (e) {
-      $('s-testers').innerHTML = '<div class="list-item"><small>' + esc(e.message) + '</small></div>';
-    }
+  function sendFeedback() {
+    openSheet('<h3>Kirim masukan</h3><p class="transcript">Ceritakan apa yang menyenangkan, membingungkan, atau ingin ditambahkan.</p>' +
+      '<div class="field"><textarea id="fb-text" maxlength="2000" placeholder="Tulis masukan Anda…"></textarea></div>' +
+      '<div class="btn-row"><button class="btn" id="fb-no">Batal</button><button class="btn primary" id="fb-yes">Kirim</button></div>', (el) => {
+      const ta = el.querySelector('#fb-text');
+      setTimeout(() => ta.focus(), 50);
+      el.querySelector('#fb-no').onclick = closeSheet;
+      el.querySelector('#fb-yes').onclick = async () => {
+        const text = ta.value.trim();
+        if (!text) { toast('Masukan masih kosong'); return; }
+        try {
+          await api('feedback', { text });
+          closeSheet();
+          toast('Terima kasih! Masukan Anda sudah terkirim 🙏');
+        } catch (e) {
+          toast(e.message, 5000);
+        }
+      };
+    });
   }
 
-  async function addTester() {
-    const email = await askText('Email Google penguji', '', 'nama@gmail.com');
-    if (!email) return;
-    const nama = await askText('Nama penguji (boleh dikosongkan)', '', 'mis. Andi');
-    const ok = await run(() => api('addUser', { email, nama: nama || '' }), email + ' sudah terdaftar di aplikasi');
-    if (ok) {
-      openSheet('<h3>Satu langkah lagi</h3><p>Tambahkan juga <b>' + esc(email) + '</b> sebagai <b>Test user</b> di Google Cloud:</p>' +
-        '<p class="transcript">Google Auth Platform → Audience → Test users → + Add users</p>' +
-        '<p>Tanpa itu, Google akan menolak login penguji ini.</p>' +
-        '<div class="btn-row"><button class="btn primary" id="tu-ok">Mengerti</button></div>', (el) => {
-        el.querySelector('#tu-ok').onclick = closeSheet;
-      });
+  async function showStats() {
+    let st;
+    try {
+      st = await withBusy('Mengambil statistik…', () => api('stats'));
+    } catch (e) {
+      toast(e.message, 5000);
+      return;
     }
+    const rows = st.hari.slice().reverse().map((d) =>
+      '<tr><td>' + esc(fmtDay(d.day)) + '</td><td>' + d.aktif + '</td><td>' + d.catatan + '</td></tr>').join('');
+    const fb = st.masukan.length ? st.masukan.map((f) =>
+      '<div class="fb-item"><small>' + esc(f.email) + ' · ' + esc(fmtDateTime(f.ts)) + '</small>' + esc(f.text) + '</div>').join('')
+      : '<p class="transcript">Belum ada masukan.</p>';
+    openSheet('<h3>📈 Statistik pemakaian</h3>' +
+      '<div class="month-strip" style="margin-top:0"><div class="stat"><div class="stat-label">Total pengguna</div><div class="stat-value">' +
+      st.totalPengguna + '</div></div><div class="stat"><div class="stat-label">Baru (14 hari)</div><div class="stat-value">' + st.penggunaBaru14 + '</div></div></div>' +
+      '<h2>14 hari terakhir</h2>' +
+      (rows ? '<table class="stat-table"><tr><th>Hari</th><th>Pengguna aktif</th><th>Catatan AI</th></tr>' + rows + '</table>'
+        : '<p class="transcript">Belum ada pemakaian AI.</p>') +
+      '<h2>Masukan terbaru</h2>' + fb +
+      '<div class="btn-row"><button class="btn" id="st-close">Tutup</button></div>', (el) => {
+      el.querySelector('#st-close').onclick = closeSheet;
+    });
   }
 
   async function showApp() {
@@ -883,7 +897,7 @@
     await loadMeta();
     setTab('home');
     await refresh();
-    if (!DEMO) offerMigrationOnce();
+    if (!DEMO && LEGACY_SERVER) offerMigrationOnce();
   }
 
   // ---------- Data di HP: cadangan, pulihkan, laporan, pindahan ----------
@@ -1095,11 +1109,13 @@
       if (await confirmBox('Keluar dari akun ini di HP ini?', 'Keluar')) logout();
     };
     $('btn-login').onclick = startLogin;
-    $('btn-add-user').onclick = addTester;
-    $('btn-reset-demo').onclick = async () => {
-      if (await confirmBox('Hapus semua data demo di browser ini?', 'Hapus')) {
-        await window.HBStore.reset(); S.newIds.clear(); S.transkrip = ''; refresh();
-      }
+    $('btn-feedback').onclick = sendFeedback;
+    $('btn-stats').onclick = showStats;
+    $('btn-reset-data').onclick = async () => {
+      if (!(await confirmBox('Hapus SEMUA transaksi, dompet & kategori di HP ini? Simpan cadangan dulu kalau masih dibutuhkan. Tindakan ini tidak bisa dibatalkan.', 'Hapus semua'))) return;
+      await window.HBStore.reset(); S.newIds.clear(); S.transkrip = '';
+      await refresh();
+      toast('Semua data di HP ini sudah dihapus');
     };
 
     // Klik di daftar (delegasi)

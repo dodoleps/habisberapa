@@ -31,7 +31,8 @@
       </button>
       <p class="pin-error" id="login-error"></p>
       <p class="login-note">Data keuangan Anda tersimpan di HP ini saja.
-        Login hanya dipakai untuk fitur AI suara. Simpan cadangan secara berkala dari menu Atur.</p>
+        Login hanya dipakai untuk fitur AI suara. Simpan cadangan secara berkala dari menu Atur.
+        <br><a href="privasi.html">Kebijakan Privasi</a></p>
     </div>
   </section>
 
@@ -115,12 +116,6 @@
         <div class="list" id="s-cats-keluar"></div>
         <div class="section-head"><h2>Kategori pemasukan</h2><button class="link-btn" data-add-cat="masuk">+ Kategori</button></div>
         <div class="list" id="s-cats-masuk"></div>
-        <div id="s-testers-wrap" hidden>
-          <div class="section-head"><h2>Penguji</h2><button class="link-btn" id="btn-add-user">+ Penguji</button></div>
-          <div class="list" id="s-testers"></div>
-          <p class="login-note" style="text-align:left">Penguji butuh izin ini untuk memakai AI suara. Data mereka tersimpan di HP masing-masing.
-            Daftarkan emailnya juga sebagai <b>Test user</b> di Google Cloud. Kuota AI Anda dipakai bersama.</p>
-        </div>
         <h2>Data & cadangan</h2>
         <div class="list">
           <div class="list-item" id="s-data-info"></div>
@@ -134,8 +129,11 @@
           <div class="list-item"><span id="s-conn"></span></div>
           <div class="list-item" id="s-timing" hidden></div>
           <div class="list-item" id="s-account" hidden></div>
+          <button class="list-item" id="btn-feedback" hidden><span>💬 Kirim masukan</span><small>›</small></button>
+          <button class="list-item" id="btn-stats" hidden><span>📈 Statistik pemakaian <small>(pemilik)</small></span><small>›</small></button>
+          <a class="list-item" href="privasi.html"><span>🔒 Kebijakan Privasi</span><small>›</small></a>
           <button class="list-item danger-text" id="btn-logout" hidden>Keluar dari akun</button>
-          <button class="list-item danger-text" id="btn-reset-demo" hidden>Hapus semua data demo</button>
+          <button class="list-item danger-text" id="btn-reset-data">Hapus semua data di HP ini</button>
         </div>
       </section>
     </main>

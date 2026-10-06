@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kebijakan Privasi · Habis Berapa</title>
+  <meta name="description" content="Kebijakan Privasi aplikasi Habis Berapa: data apa yang disimpan, di mana, dan hak Anda.">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap">
+  <style>
+    :root { --bg: #f6f5f1; --card: #fff; --text: #1e2a27; --muted: #66716e; --brand: #2f8a75; --line: #eceae4; --soft: #ddf3ea; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) { --bg: #141816; --card: #1d2321; --text: #e9efed; --muted: #a0aca8; --brand: #6fd1b7; --line: #2b3330; --soft: #1f3a32; }
+    }
+    :root[data-theme="dark"] { --bg: #141816; --card: #1d2321; --text: #e9efed; --muted: #a0aca8; --brand: #6fd1b7; --line: #2b3330; --soft: #1f3a32; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 "Plus Jakarta Sans", -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+    .top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .top img { width: 44px; height: 44px; border-radius: 14px; }
+    h1 { font-size: 26px; line-height: 1.25; margin: 16px 0 4px; letter-spacing: -.02em; }
+    .meta { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+    .summary { background: var(--soft); border-radius: 22px; padding: 16px 18px; margin-bottom: 24px; }
+    .summary ul { margin: 6px 0 0; padding-left: 20px; }
+    section { background: var(--card); border-radius: 22px; padding: 4px 20px 14px; margin-bottom: 14px; }
+    h2 { font-size: 17px; margin: 16px 0 6px; }
+    p, li { max-width: 66ch; }
+    ul { padding-left: 20px; }
+    a { color: var(--brand); font-weight: 600; }
+    .back { display: inline-block; margin-top: 8px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top"><img src="icons/icon-192.png" alt=""><strong>Habis Berapa</strong></div>
+    <h1>Kebijakan Privasi</h1>
+    <p class="meta">Berlaku sejak 7 Oktober 2026</p>
+
+    <div class="summary">
+      <strong>Ringkasnya</strong>
+      <ul>
+        <li>Catatan keuangan Anda (transaksi, dompet, kategori) <b>tersimpan di HP Anda sendiri</b>, bukan di server kami.</li>
+        <li>Saat memakai fitur AI suara, rekaman atau teks Anda dikirim untuk diubah menjadi transaksi, lalu <b>tidak kami simpan</b>.</li>
+        <li>Kami hanya menyimpan email untuk login, statistik pemakaian tanpa isi keuangan, dan masukan yang Anda kirim.</li>
+      </ul>
+    </div>
+
+    <section>
+      <h2>1. Data yang tersimpan di HP Anda</h2>
+      <p>Transaksi, dompet, kategori, pilihan warna, dan pengaturan aplikasi disimpan di penyimpanan browser pada perangkat Anda.
+        Data ini tidak dikirim ke server kami. Karena itu, kami tidak dapat memulihkannya bila HP hilang, rusak, atau data browser dihapus.
+        Gunakan menu <b>Atur → Simpan cadangan</b> secara berkala.</p>
+    </section>
+
+    <section>
+      <h2>2. Data yang diproses server kami</h2>
+      <ul>
+        <li><b>Akun Google</b> — email dan nama dari Google Sign-In, untuk masuk ke aplikasi. Kami tidak menerima kata sandi Anda.</li>
+        <li><b>Rekaman suara atau teks</b> yang Anda ucapkan/ketik untuk dicatat, beserta daftar <b>nama dompet dan kategori</b> Anda,
+          dikirim ke server kami lalu diteruskan ke <b>Google Gemini</b> untuk diubah menjadi transaksi. Server kami tidak menyimpan rekaman, teks, maupun hasilnya.</li>
+        <li><b>Statistik pemakaian</b> — kode acak yang dibuat dari email Anda (bukan email itu sendiri), tanggal pemakaian,
+          dan jumlah catatan AI per hari. Tidak berisi nominal atau isi transaksi.</li>
+        <li><b>Masukan</b> yang Anda kirim lewat menu <b>Kirim masukan</b>, beserta email Anda, agar dapat kami tindak lanjuti.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Tentang Google Gemini (AI)</h2>
+      <p>Saat ini aplikasi memakai layanan Gemini API versi <b>gratis</b>. Pada layanan gratis, Google dapat menggunakan konten yang dikirim
+        untuk meningkatkan produknya, sesuai <a href="https://ai.google.dev/gemini-api/terms" rel="noopener">Ketentuan Gemini API</a>.
+        Hindari menyebut informasi yang sangat pribadi (nomor rekening, PIN, kata sandi) saat merekam suara.
+        Bila nanti kami beralih ke layanan berbayar, kebijakan ini akan diperbarui.</p>
+    </section>
+
+    <section>
+      <h2>4. Pihak yang membantu kami</h2>
+      <ul>
+        <li><b>Google</b> — login (Google Sign-In) dan AI (Gemini).</li>
+        <li><b>Cloudflare</b> — menjalankan server kami (Workers & database D1).</li>
+        <li><b>GitHub Pages</b> — tempat tampilan aplikasi diunduh.</li>
+        <li><b>cdnjs</b> — pustaka untuk membuat file PDF/Excel, diunduh saat Anda pertama kali mengekspor.</li>
+      </ul>
+      <p>Kami tidak menjual data Anda dan tidak memakainya untuk iklan.</p>
+    </section>
+
+    <section>
+      <h2>5. Hak Anda</h2>
+      <p>Sesuai Undang-Undang Pelindungan Data Pribadi (UU No. 27 Tahun 2022), Anda berhak mengakses, memperbaiki, dan menghapus data pribadi Anda.</p>
+      <ul>
+        <li><b>Data di HP</b> — ekspor kapan saja lewat <b>Simpan cadangan</b> atau unduh laporan, dan hapus lewat <b>Atur → Hapus semua data di HP ini</b>.</li>
+        <li><b>Data di server</b> (statistik pemakaian & masukan) — minta salinan atau penghapusan melalui menu <b>Kirim masukan</b>.</li>
+        <li><b>Akses Google</b> — Anda dapat mencabut akses aplikasi kapan saja di
+          <a href="https://myaccount.google.com/permissions" rel="noopener">pengaturan akun Google</a>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Penyimpanan & keamanan</h2>
+      <p>Komunikasi dengan server memakai koneksi terenkripsi (HTTPS). Sesi login berlaku 30 hari di setiap perangkat.
+        Statistik pemakaian dan masukan disimpan selama aplikasi masih dalam tahap uji coba, lalu ditinjau ulang.</p>
+    </section>
+
+    <section>
+      <h2>7. Perubahan kebijakan</h2>
+      <p>Kebijakan ini dapat berubah, misalnya saat fitur premium atau penyimpanan cloud ditambahkan.
+        Tanggal berlaku di bagian atas halaman akan diperbarui, dan perubahan penting akan diberitahukan di aplikasi.</p>
+      <a class="back" href="./">← Kembali ke aplikasi</a>
+    </section>
+  </main>
+</body>
+</html>

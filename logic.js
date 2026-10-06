@@ -107,6 +107,64 @@
     return 'merah';
   }
 
+  // ---------- Merapikan transaksi & hasil AI ----------
+
+  const KATEGORI_PINDAH = 'Pindah dana';
+
+  /** Rapikan & periksa satu transaksi. Melempar Error kalau tidak valid. */
+  function cleanTx(tx, today) {
+    const jenis = ['keluar', 'masuk', 'pindah'].indexOf(tx.jenis) >= 0 ? tx.jenis : 'keluar';
+    const nominal = Math.round(Number(tx.nominal));
+    if (!(nominal > 0)) throw new Error('Nominal harus lebih dari 0');
+    const out = {
+      ...tx,
+      jenis,
+      nominal,
+      tanggal: /^\d{4}-\d{2}-\d{2}$/.test(tx.tanggal || '') ? tx.tanggal : today,
+      kategori: jenis === 'pindah' ? KATEGORI_PINDAH : String(tx.kategori || 'Lainnya'),
+      dompet_id: String(tx.dompet_id || UTAMA_ID),
+      dompet_tujuan_id: jenis === 'pindah' ? String(tx.dompet_tujuan_id || '') : '',
+      keterangan: String(tx.keterangan || '').slice(0, 200),
+      sumber: String(tx.sumber || 'manual'),
+      transkrip: String(tx.transkrip || '').slice(0, 1000),
+    };
+    if (jenis === 'pindah' && (!out.dompet_tujuan_id || out.dompet_tujuan_id === out.dompet_id)) {
+      throw new Error('Dompet asal dan tujuan harus berbeda');
+    }
+    return out;
+  }
+
+  /**
+   * Ubah jawaban AI ({ transkrip, transaksi: [{ jenis, nominal, kategori, dompet, dompet_tujuan, ... }] })
+   * menjadi transaksi siap simpan: nama dompet -> id, kategori harus ada di daftar. Item yang tidak valid dibuang.
+   */
+  function mapAiResult(result, wallets, categories, opts) {
+    const active = wallets.filter((w) => !w.arsip);
+    const findWallet = (nama) => {
+      const n = String(nama || '').trim().toLowerCase();
+      const w = active.find((x) => x.nama.toLowerCase() === n);
+      return w ? w.id : '';
+    };
+    const out = [];
+    (result.transaksi || []).forEach((t) => {
+      const jenis = t.jenis;
+      let kategori = String(t.kategori || '');
+      if (jenis !== 'pindah') {
+        const match = categories.find((c) => c.jenis === jenis && c.nama.toLowerCase() === kategori.toLowerCase());
+        kategori = match ? match.nama : 'Lainnya';
+      }
+      try {
+        out.push(cleanTx({
+          tanggal: t.tanggal, jenis, nominal: t.nominal, kategori,
+          dompet_id: findWallet(t.dompet) || UTAMA_ID,
+          dompet_tujuan_id: jenis === 'pindah' ? findWallet(t.dompet_tujuan) : '',
+          keterangan: t.keterangan, sumber: opts.sumber, transkrip: opts.transkrip,
+        }, opts.today));
+      } catch (e) { /* lewati item yang tidak valid */ }
+    });
+    return out;
+  }
+
   // ---------- Parser sederhana untuk MODE DEMO (tanpa AI) ----------
 
   const SLANG = { gopek: 500, seceng: 1000, goceng: 5000, ceban: 10000, gocap: 50000, cepek: 100000 };
@@ -192,7 +250,8 @@
     return out;
   }
 
-  const api = { UTAMA_ID, computeWallets, monthSummary, categoryReport, cashPosition, cashZone, CASH_LEVELS, parseDemo, parseAmount, sortTx, monthOf };
+  const api = { UTAMA_ID, KATEGORI_PINDAH, computeWallets, monthSummary, categoryReport, cashPosition, cashZone, CASH_LEVELS,
+    cleanTx, mapAiResult, parseDemo, parseAmount, sortTx, monthOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.HBLogic = api;
 })(this);

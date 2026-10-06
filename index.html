@@ -30,9 +30,8 @@
         Masuk dengan Google
       </button>
       <p class="pin-error" id="login-error"></p>
-      <p class="login-note">Hanya email yang sudah didaftarkan pemilik aplikasi yang bisa masuk.
-        Data Anda tersimpan di Google Sheets milik pemilik aplikasi, terpisah dari pengguna lain,
-        dan dapat dilihat oleh pemilik.</p>
+      <p class="login-note">Data keuangan Anda tersimpan di HP ini saja.
+        Login hanya dipakai untuk fitur AI suara. Simpan cadangan secara berkala dari menu Atur.</p>
     </div>
   </section>
 
@@ -47,7 +46,8 @@
       <div class="hero-label">Total semua dompet</div>
       <div class="hero-total" id="total-saldo">Rp0</div>
     </header>
-    <div class="demo-banner" id="demo-banner" hidden>Mode demo: data hanya tersimpan di browser ini.</div>
+    <div class="demo-banner" id="demo-banner" hidden>Mode demo: catat lewat ketik, AI suara belum aktif.</div>
+    <div class="backup-banner" id="backup-banner" hidden></div>
 
     <main>
       <!-- BERANDA -->
@@ -100,6 +100,11 @@
         </div>
         <h2>Pengeluaran per kategori</h2>
         <div id="r-cats"></div>
+        <h2>Unduh laporan bulan ini</h2>
+        <div class="export-row">
+          <button class="btn" id="btn-report-pdf">📄 PDF</button>
+          <button class="btn" id="btn-report-xlsx">📊 Excel</button>
+        </div>
       </section>
 
       <!-- PENGATURAN -->
@@ -113,9 +118,17 @@
         <div id="s-testers-wrap" hidden>
           <div class="section-head"><h2>Penguji</h2><button class="link-btn" id="btn-add-user">+ Penguji</button></div>
           <div class="list" id="s-testers"></div>
-          <p class="login-note" style="text-align:left">Penguji masuk dengan akun Google-nya dan punya data sendiri. Daftarkan emailnya juga sebagai
-            <b>Test user</b> di Google Cloud. Kuota AI gratis Anda dipakai bersama.</p>
+          <p class="login-note" style="text-align:left">Penguji butuh izin ini untuk memakai AI suara. Data mereka tersimpan di HP masing-masing.
+            Daftarkan emailnya juga sebagai <b>Test user</b> di Google Cloud. Kuota AI Anda dipakai bersama.</p>
         </div>
+        <h2>Data & cadangan</h2>
+        <div class="list">
+          <div class="list-item" id="s-data-info"></div>
+          <button class="list-item" id="btn-backup"><span>💾 Simpan cadangan <small>(file Excel)</small></span><small>›</small></button>
+          <button class="list-item" id="btn-restore"><span>♻️ Pulihkan dari cadangan</span><small>›</small></button>
+          <button class="list-item" id="btn-migrate" hidden><span>📥 Pindahkan data dari Google Sheets</span><small>›</small></button>
+        </div>
+        <input type="file" id="restore-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
         <h2>Aplikasi</h2>
         <div class="list">
           <div class="list-item"><span id="s-conn"></span></div>
@@ -152,7 +165,8 @@
 
   <script src="config.js"></script>
   <script src="logic.js"></script>
-  <script src="mock.js"></script>
+  <script src="store.js"></script>
+  <script src="export.js"></script>
   <script src="recorder.js"></script>
   <script src="app.js"></script>
 </body>

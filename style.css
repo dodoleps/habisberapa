@@ -363,3 +363,12 @@ main { padding: 0 16px; }
 .cash-tip .tip-date { opacity: .75; }
 .cash-note { font-size: 11px; color: var(--muted); margin: 8px 4px 0; line-height: 1.5; }
 .cash-tip .tip-zone { font-weight: 700; margin-bottom: 2px; }
+
+/* ---------- Data & cadangan ---------- */
+.backup-banner {
+  margin: 10px 16px 0; background: var(--warn-bg); color: var(--text); font-size: 13px; padding: 10px 14px;
+  border-radius: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.backup-banner button { border: 0; background: var(--card); color: var(--brand); font-weight: 700; padding: 7px 12px; border-radius: 999px; white-space: nowrap; }
+.export-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.export-row .btn { background: var(--card); box-shadow: var(--shadow); }

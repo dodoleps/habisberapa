@@ -44,8 +44,12 @@
 
   // ---------- Komunikasi dengan server ----------
 
+  /** Aksi yang dikirim ke server. Semua aksi lain (data) disimpan di HP lewat HBStore. */
+  const SERVER_ACTIONS = { login: 1, parse: 1, legacyState: 1, users: 1, addUser: 1, removeUser: 1, ping: 1, me: 1 };
+
   async function api(action, req) {
-    if (DEMO) return window.HBMock.call(action, req);
+    if (!SERVER_ACTIONS[action]) return window.HBStore.call(action, req);
+    if (DEMO) throw new Error('Mode demo: fitur ini butuh server.');
     let res;
     try {
       res = await fetch(API_URL, {
@@ -147,6 +151,7 @@
   }
 
   function renderHome(cw) {
+    renderBackupBanner();
     $('home-summary').innerHTML = statsHtml(L.monthSummary(S.transactions, thisMonth()));
     const byId = Object.fromEntries(cw.map((w) => [w.id, w]));
     $('wallet-grid').innerHTML = activeWallets().map((w0) => {
@@ -328,7 +333,8 @@
         '<button class="list-item" data-edit-cat="' + esc(c.nama) + '" data-jenis="' + j + '"><span>' +
         (ICON[c.nama] || '•') + ' ' + esc(c.nama) + '</span><small>›</small></button>').join('');
     });
-    $('s-conn').innerHTML = DEMO ? '🟡 Mode demo (belum tersambung ke Google Sheets)' : '🟢 Tersambung ke Google Sheets';
+    $('s-conn').innerHTML = DEMO ? '🟡 Mode demo: tanpa AI suara' : '🟢 Tersambung ke server AI';
+    renderDataInfo();
     const lt = S.lastTiming;
     $('s-timing').hidden = !lt;
     if (lt) {
@@ -346,6 +352,7 @@
     if (me) $('s-account').innerHTML = '<span>👤 ' + esc(me.nama || me.email) + '<br><small>' + esc(me.email) +
       (me.owner ? ' · pemilik' : '') + '</small></span>';
     $('s-testers-wrap').hidden = DEMO || !me || !me.owner;
+    $('btn-migrate').hidden = DEMO || !me;
     if (me && me.owner) renderTesters();
   }
 
@@ -643,15 +650,22 @@
   /**
    * Kirim ke server lewat jalur utama. Kalau belum ada jawaban dalam BACKUP_AFTER_MS (atau jalur utama gagal),
    * kirim juga lewat jalur cadangan yang memakai model AI lain. Yang selesai duluan dipakai.
-   * Server memastikan transaksi hanya tersimpan sekali (lewat reqId yang sama).
+   * Server hanya membaca ucapan; transaksi disimpan di HP sekali saja oleh processAi.
    */
   function aiWithBackup(req) {
-    const reqId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    if (DEMO) {
+      if (req.audio) return Promise.reject(new Error('Mode demo belum bisa memproses suara. Coba fitur ketik.'));
+      return Promise.resolve({ transkrip: req.text, demoTxs: L.parseDemo(req.text, S.wallets, S.categories, todayStr()) });
+    }
+    const lists = {
+      wallets: activeWallets().map((w) => ({ id: w.id, nama: w.nama })),
+      categories: S.categories.map((c) => ({ nama: c.nama, jenis: c.jenis })),
+    };
     return new Promise((resolve, reject) => {
       let finished = false, pending = 0, backupSent = false, lastErr = null, timer = null;
       const send = (lane) => {
         pending++;
-        api('ai', { ...req, reqId, lane }).then((out) => {
+        api('parse', { ...req, ...lists, lane }).then((out) => {
           if (finished) return;
           finished = true;
           clearTimeout(timer);
@@ -683,20 +697,16 @@
     const tick = setInterval(() => setVoiceStatus('Memproses… ' + Math.floor((Date.now() - t0) / 1000) + ' dtk'), 1000);
     try {
       const out = await aiWithBackup(req);
+      const sumber = req.audio ? 'suara' : 'ketik';
+      const txs = out.demoTxs ? out.demoTxs.map((t) => ({ ...t, sumber, transkrip: out.transkrip }))
+        : L.mapAiResult(out, S.wallets, S.categories, { sumber, transkrip: out.transkrip, today: todayStr() });
+      out.saved = txs.length ? await api('addTxs', { txs }) : [];
       const totalMs = Date.now() - t0;
       S.lastTiming = { total: totalMs, ai: out.timing && out.timing.ai_ms, model: out.timing && out.timing.model,
         attempts: out.timing && out.timing.attempts, lane: out.timing && out.timing.lane, log: (out.timing && out.timing.log) || [], conv: req.audio ? S.convMs : 0, kb: req.audio ? Math.round(req.audio.length * 0.75 / 1024) : 0 };
       S.transkrip = out.transkrip || '';
       S.newIds = new Set(out.saved.map((t) => t.id));
-      if (out.state) {
-        // Server sudah mengirim data terbaru, tidak perlu meminta ulang.
-        S.wallets = out.state.wallets;
-        S.categories = out.state.categories;
-        S.transactions = out.state.transactions;
-        render();
-      } else {
-        await refresh(true);
-      }
+      await refresh(true);
       if (S.tab !== 'home') setTab('home');
       if (out.saved.length) {
         const total = out.saved.reduce((s, t) => s + t.nominal, 0);
@@ -860,12 +870,194 @@
     }
   }
 
-  function showApp() {
+  async function showApp() {
+    try {
+      await window.HBStore.open(DEMO ? null : session().email);
+    } catch (e) {
+      toast('Penyimpanan HP tidak bisa dibuka: ' + e.message, 6000);
+      return;
+    }
     $('login-screen').hidden = true;
     $('app').hidden = false;
     $('demo-banner').hidden = !DEMO;
+    await loadMeta();
     setTab('home');
-    refresh();
+    await refresh();
+    if (!DEMO) offerMigrationOnce();
+  }
+
+  // ---------- Data di HP: cadangan, pulihkan, laporan, pindahan ----------
+
+  const BACKUP_EVERY_DAYS = 7;
+  const META = {};   // salinan meta dari penyimpanan HP (lastBackup, migrasiDicek)
+
+  async function loadMeta() {
+    META.lastBackup = await api('getMeta', { key: 'lastBackup' });
+    META.migrasiDicek = await api('getMeta', { key: 'migrasiDicek' });
+  }
+
+  function daysSince(iso) {
+    if (!iso) return Infinity;
+    return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  }
+  function fmtDateTime(iso) {
+    return new Date(iso).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  function fileStamp() { return todayStr(); }
+
+  function renderBackupBanner() {
+    const b = $('backup-banner');
+    const due = S.transactions.length > 0 && daysSince(META.lastBackup) >= BACKUP_EVERY_DAYS;
+    b.hidden = !due;
+    if (due) {
+      b.innerHTML = '<span>💾 ' + (META.lastBackup ? 'Sudah ' + daysSince(META.lastBackup) + ' hari belum simpan cadangan.'
+        : 'Data hanya ada di HP ini. Simpan cadangan supaya aman.') + '</span><button data-backup-now>Simpan</button>';
+    }
+  }
+
+  function renderDataInfo() {
+    $('s-data-info').innerHTML = '<span>📱 Data tersimpan di HP ini<br><small>' + S.transactions.length + ' transaksi · ' +
+      (META.lastBackup ? 'cadangan terakhir ' + esc(fmtDateTime(META.lastBackup)) : 'belum pernah dicadangkan') + '</small></span>';
+  }
+
+  /**
+   * Tawarkan file ke pengguna. Dibuat dua langkah (siapkan, lalu ketuk "Simpan / Bagikan") karena
+   * iPhone hanya mengizinkan menu bagikan langsung dari ketukan pengguna.
+   */
+  function offerFile(blob, filename, title) {
+    const file = new File([blob], filename, { type: blob.type });
+    openSheet('<h3>' + esc(title) + '</h3><p>' + esc(filename) + ' · ' + Math.max(1, Math.round(blob.size / 1024)) + ' KB</p>' +
+      '<p class="transcript">Di iPhone pilih "Simpan ke File" atau kirim lewat WhatsApp/email.</p>' +
+      '<div class="btn-row"><button class="btn" id="of-close">Tutup</button><button class="btn primary" id="of-go">Simpan / Bagikan</button></div>', (el) => {
+      el.querySelector('#of-close').onclick = closeSheet;
+      el.querySelector('#of-go').onclick = async () => {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title });
+            closeSheet();
+            return true;
+          } catch (e) {
+            if (e.name === 'AbortError') return false;
+          }
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        closeSheet();
+        return true;
+      };
+    });
+  }
+
+  async function withBusy(label, fn) {
+    toast(label, 20000);
+    try { return await fn(); } finally { $('toast').hidden = true; }
+  }
+
+  async function makeBackup() {
+    try {
+      const me = session();
+      const blob = await withBusy('Menyiapkan cadangan…', () => window.HBExport.backupXlsx(window.HBStore.snapshot(),
+        { dibuat: new Date().toISOString(), akun: me ? me.email : '' }));
+      offerFile(blob, 'habisberapa-cadangan-' + fileStamp() + '.xlsx', 'Cadangan siap');
+      // Dianggap sudah dicadangkan begitu file dibuat.
+      META.lastBackup = new Date().toISOString();
+      await api('setMeta', { key: 'lastBackup', value: META.lastBackup });
+      render();
+    } catch (e) {
+      toast(e.message, 5000);
+    }
+  }
+
+  async function restoreBackup(file) {
+    let data;
+    try {
+      data = await withBusy('Membaca file…', async () => window.HBExport.readBackup(await file.arrayBuffer()));
+    } catch (e) {
+      toast(e.message, 6000);
+      return;
+    }
+    const msg = 'Ganti semua data di HP ini dengan isi cadangan? (' + data.transactions.length + ' transaksi, ' +
+      data.wallets.filter((w) => !String(w.arsip)).length + ' dompet). Data yang sekarang akan terhapus.';
+    if (!(await confirmBox(msg, 'Pulihkan'))) return;
+    try {
+      const r = await api('replaceAll', { data });
+      S.newIds.clear(); S.transkrip = '';
+      await refresh();
+      toast('Berhasil dipulihkan: ' + r.transaksi + ' transaksi');
+    } catch (e) {
+      toast(e.message, 6000);
+    }
+  }
+
+  /** Data lama dari Google Sheets (versi sebelum data disimpan di HP). */
+  async function migrateFromSheets(auto) {
+    let legacy;
+    try {
+      legacy = await withBusy('Mengambil data dari Google Sheets…', () => api('legacyState'));
+    } catch (e) {
+      if (!auto) toast(e.message, 5000);
+      return;
+    }
+    await api('setMeta', { key: 'migrasiDicek', value: true });
+    META.migrasiDicek = true;
+    if (!legacy || !legacy.transactions.length) {
+      if (!auto) toast('Tidak ada data lama di Google Sheets untuk akun ini.');
+      return;
+    }
+    const replace = S.transactions.length > 0;
+    const msg = 'Ada ' + legacy.transactions.length + ' transaksi lama di Google Sheets. Pindahkan ke HP ini?' +
+      (replace ? ' Data yang sekarang ada di HP ini akan diganti.' : '');
+    if (!(await confirmBox(msg, 'Pindahkan'))) return;
+    try {
+      const r = await api('replaceAll', { data: legacy });
+      await refresh();
+      toast(r.transaksi + ' transaksi dipindahkan ke HP ini. Jangan lupa simpan cadangan.', 5000);
+    } catch (e) {
+      toast(e.message, 6000);
+    }
+  }
+
+  async function offerMigrationOnce() {
+    if (!META.migrasiDicek && !S.transactions.length) migrateFromSheets(true);
+  }
+
+  /** Susun isi laporan bulan yang sedang dilihat di halaman Laporan. */
+  function buildReport() {
+    const m = S.reportMonth;
+    const me = session();
+    const cw = computed().filter((w) => !w.arsip);
+    const statusText = { aman: 'Aman', menipis: 'Hampir habis', habis: 'Habis', kosong: 'Belum diisi' };
+    const cp = L.cashPosition(S.transactions, m, m === thisMonth() ? todayStr() : null);
+    const pts = cp.days.filter((d) => d.persen !== null);
+    const last = pts[pts.length - 1];
+    return {
+      bulan: fmtMonth(m),
+      akun: me ? (me.nama ? me.nama + ' (' + me.email + ')' : me.email) : '',
+      dibuat: new Date().toLocaleString('id-ID'),
+      ringkasan: L.monthSummary(S.transactions, m),
+      totalSaldo: cw.reduce((s, w) => s + w.saldo, 0),
+      posisiKas: last ? { persen: pct(last.persen), label: ZONES[L.cashZone(last.persen)].label } : null,
+      dompet: activeWallets().map((w0) => { const w = cw.find((x) => x.id === w0.id); return { nama: w.nama, saldo: w.saldo, status: statusText[w.status] }; }),
+      kategori: L.categoryReport(S.transactions, m).rows,
+      transaksi: L.sortTx(S.transactions).filter((t) => L.monthOf(t.tanggal) === m).map((t) => ({
+        tanggal: t.tanggal, jenis: t.jenis, keterangan: t.keterangan || t.kategori, kategori: t.kategori,
+        dompet: walletName(t.dompet_id), tujuan: t.jenis === 'pindah' ? walletName(t.dompet_tujuan_id) : '', nominal: t.nominal })),
+    };
+  }
+
+  async function exportReport(kind) {
+    try {
+      const rep = buildReport();
+      const name = 'habisberapa-laporan-' + S.reportMonth + (kind === 'pdf' ? '.pdf' : '.xlsx');
+      const blob = await withBusy('Menyiapkan laporan…', () =>
+        kind === 'pdf' ? window.HBExport.reportPdf(rep, rp) : window.HBExport.reportXlsx(rep));
+      offerFile(blob, name, 'Laporan ' + rep.bulan + ' siap');
+    } catch (e) {
+      toast(e.message, 5000);
+    }
   }
 
   // ---------- Event ----------
@@ -892,6 +1084,13 @@
         if (nama) await run(() => api('addCategory', { nama, jenis: b.dataset.addCat }), 'Kategori dibuat');
       };
     });
+    $('btn-backup').onclick = makeBackup;
+    $('btn-restore').onclick = () => $('restore-file').click();
+    $('restore-file').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) restoreBackup(f); };
+    $('btn-migrate').onclick = () => migrateFromSheets(false);
+    $('btn-report-pdf').onclick = () => exportReport('pdf');
+    $('btn-report-xlsx').onclick = () => exportReport('xlsx');
+    $('backup-banner').onclick = (e) => { if (e.target.closest('[data-backup-now]')) makeBackup(); };
     $('btn-logout').onclick = async () => {
       if (await confirmBox('Keluar dari akun ini di HP ini?', 'Keluar')) logout();
     };
@@ -899,7 +1098,7 @@
     $('btn-add-user').onclick = addTester;
     $('btn-reset-demo').onclick = async () => {
       if (await confirmBox('Hapus semua data demo di browser ini?', 'Hapus')) {
-        window.HBMock.reset(); S.newIds.clear(); S.transkrip = ''; refresh();
+        await window.HBStore.reset(); S.newIds.clear(); S.transkrip = ''; refresh();
       }
     };
 

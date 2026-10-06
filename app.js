@@ -217,10 +217,98 @@
     $('history-list').innerHTML = html;
   }
 
+  // ---------- Grafik posisi kas ----------
+
+  const ZONES = {
+    hijau: { icon: '☁️', label: 'Lagi di atas awan king, saatnya investasi' },
+    kuning: { icon: '😎', label: 'Nikmati hidup dengan lowkey' },
+    oranye: { icon: '👀', label: 'Waspada king, tetap jaga pengeluaran' },
+    merah: { icon: '🆘', label: 'Lagi mode survival, jangan banyak gaya' },
+  };
+  const pct = (p) => Math.round(p * 100) + '%';
+
+  function renderCash() {
+    const m = S.reportMonth;
+    const box = $('r-cash'), head = $('r-cash-head'), tip = $('r-cash-tip');
+    tip.hidden = true;
+    const cp = L.cashPosition(S.transactions, m, m === thisMonth() ? todayStr() : null);
+    const pts = m > thisMonth() ? [] : cp.days.map((d, i) => ({ ...d, i })).filter((d) => d.persen !== null);
+    if (!pts.length) {
+      head.innerHTML = '';
+      box.innerHTML = '<div class="empty">Belum ada pemasukan atau saldo di bulan ini.</div>';
+      return;
+    }
+    const last = pts[pts.length - 1];
+    const z = ZONES[L.cashZone(last.persen)];
+    head.innerHTML = '<span class="cash-zone zone-' + L.cashZone(last.persen) + '">' + z.icon + ' ' + pct(last.persen) + '</span>' +
+      '<span class="cash-zone-text"><b>' + esc(z.label) + '</b><br><small>' +
+      (m === thisMonth() ? 'Posisi hari ini' : 'Posisi akhir bulan') + ' · saldo ' + rp(last.saldo) + '</small></span>';
+
+    const [yy, mm] = m.split('-').map(Number);
+    const daysInMonth = new Date(yy, mm, 0).getDate();
+    const W = Math.max(280, box.clientWidth || 320), H = 220;
+    const L0 = 38, R0 = 10, T0 = 8, B0 = 24;
+    const pw = W - L0 - R0, ph = H - T0 - B0;
+    const x = (i) => L0 + (daysInMonth > 1 ? (i / (daysInMonth - 1)) * pw : 0);
+    const y = (p) => T0 + (1 - p) * ph;
+    const band = (key, top, bottom) =>
+      '<rect x="' + L0 + '" y="' + y(top) + '" width="' + pw + '" height="' + (y(bottom) - y(top)) + '" fill="url(#g-' + key + ')"/>';
+    const grad = (key) => '<linearGradient id="g-' + key + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="var(--zone-' + key + ')" stop-opacity=".75"/>' +
+      '<stop offset="1" stop-color="var(--zone-' + key + ')" stop-opacity=".25"/></linearGradient>';
+    const ticksY = [1].concat(L.CASH_LEVELS, [0]).map((p) =>
+      '<text class="axis" x="' + (L0 - 6) + '" y="' + (y(p) + 4) + '" text-anchor="end">' + pct(p) + '</text>').join('');
+    const ticksX = [1, 8, 15, 22, daysInMonth].map((d) =>
+      '<text class="axis" x="' + x(d - 1) + '" y="' + (H - 6) + '" text-anchor="middle">' + d + '</text>').join('');
+    const line = pts.map((d, k) => (k ? 'L' : 'M') + x(d.i).toFixed(1) + ' ' + y(d.persen).toFixed(1)).join(' ');
+    box.innerHTML = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Grafik posisi kas ' +
+      esc(fmtMonth(m)) + ', terakhir ' + pct(last.persen) + '">' +
+      '<defs>' + Object.keys(ZONES).map(grad).join('') + '</defs>' +
+      band('hijau', 1, 0.75) + band('kuning', 0.75, 0.5) + band('oranye', 0.5, 0.25) + band('merah', 0.25, 0) +
+      ticksY + ticksX +
+      '<path class="cash-line" d="' + line + '"/>' +
+      '<line class="cross" id="cash-cross" x1="0" x2="0" y1="' + T0 + '" y2="' + (T0 + ph) + '" visibility="hidden"/>' +
+      '<circle class="cash-dot" id="cash-dot" r="5" cx="' + x(last.i) + '" cy="' + y(last.persen) + '"/>' +
+      '<rect id="cash-hit" x="' + L0 + '" y="0" width="' + pw + '" height="' + (H - B0) + '" fill="transparent"/>' +
+      '</svg>';
+
+    // Ketuk / geser di grafik untuk melihat rincian hari itu.
+    const hit = box.querySelector('#cash-hit'), cross = box.querySelector('#cash-cross'), dot = box.querySelector('#cash-dot');
+    const show = (ev) => {
+      const r = box.querySelector('svg').getBoundingClientRect();
+      const px = ev.clientX - r.left;
+      let best = pts[0];
+      pts.forEach((d) => { if (Math.abs(x(d.i) - px) < Math.abs(x(best.i) - px)) best = d; });
+      cross.setAttribute('x1', x(best.i)); cross.setAttribute('x2', x(best.i)); cross.setAttribute('visibility', 'visible');
+      dot.setAttribute('cx', x(best.i)); dot.setAttribute('cy', y(best.persen));
+      tip.replaceChildren();
+      const add = (tag, text, cls) => { const e = document.createElement(tag); e.textContent = text; if (cls) e.className = cls; tip.appendChild(e); };
+      const bz = ZONES[L.cashZone(best.persen)];
+      add('strong', bz.icon + ' ' + pct(best.persen));
+      add('div', bz.label, 'tip-zone');
+      add('div', fmtDay(best.tanggal), 'tip-date');
+      add('div', 'Saldo ' + rp(best.saldo));
+      add('div', 'Pengeluaran hari itu ' + rp(best.keluar));
+      if (best.masuk) add('div', 'Pemasukan ' + rp(best.masuk));
+      tip.hidden = false;
+      const tx = Math.min(Math.max(x(best.i) - tip.offsetWidth / 2, 4), W - tip.offsetWidth - 4);
+      tip.style.left = tx + 'px';
+    };
+    hit.addEventListener('pointerdown', show);
+    hit.addEventListener('pointermove', show);
+    hit.addEventListener('pointerleave', (ev) => {
+      if (ev.pointerType !== 'mouse') return; // di HP rincian tetap tampil setelah diketuk
+      tip.hidden = true;
+      cross.setAttribute('visibility', 'hidden');
+      dot.setAttribute('cx', x(last.i)); dot.setAttribute('cy', y(last.persen));
+    });
+  }
+
   function renderReport() {
     const m = S.reportMonth;
     $('r-month').textContent = fmtMonth(m);
     $('r-summary').innerHTML = statsHtml(L.monthSummary(S.transactions, m));
+    renderCash();
     const rep = L.categoryReport(S.transactions, m);
     $('r-cats').innerHTML = rep.rows.length ? rep.rows.map((r, i) =>
       '<button class="cat-row tx wc-' + (i % WALLET_COLORS) + '" style="display:block" data-cat-report="' + esc(r.kategori) + '">' +
@@ -843,6 +931,13 @@
     // Laporan
     $('r-prev').onclick = () => { S.reportMonth = shiftMonth(S.reportMonth, -1); renderReport(); };
     $('r-next').onclick = () => { S.reportMonth = shiftMonth(S.reportMonth, 1); renderReport(); };
+
+    // Grafik menyesuaikan lebar layar (mis. HP diputar)
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { if (S.tab === 'report') renderCash(); }, 150);
+    });
 
     // Muat ulang data saat aplikasi dibuka kembali
     document.addEventListener('visibilitychange', () => {

@@ -22,6 +22,10 @@
   --hero-ink: #1e2a27;
   --shadow: 0 1px 2px rgba(30, 42, 39, .04), 0 8px 24px rgba(30, 42, 39, .06);
   --shadow-lg: 0 10px 30px rgba(30, 42, 39, .12);
+  --zone-hijau: #a8e4c0;
+  --zone-kuning: #fde68f;
+  --zone-oranye: #ffc79a;
+  --zone-merah: #f8b0ad;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 
@@ -63,6 +67,10 @@
     --hero-ink: #f1f5f3;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3);
     --shadow-lg: 0 10px 30px rgba(0, 0, 0, .45);
+    --zone-hijau: #2f6b4a;
+    --zone-kuning: #6b5a1f;
+    --zone-oranye: #6e4422;
+    --zone-merah: #6e2f2c;
 
     --w0-bg: #1e3a31; --w0-ink: #8fe0c2;
     --w1-bg: #3d2b22; --w1-ink: #ffb894;
@@ -329,3 +337,29 @@ main { padding: 0 16px; }
 .swatch::after { content: ""; position: absolute; inset: 30%; border-radius: 50%; background: var(--w-ink); opacity: .85; }
 .swatch.on { border-color: var(--w-ink); }
 .swatch.on::after { content: "✓"; display: grid; place-items: center; inset: 22%; color: var(--w-bg); font-weight: 800; font-size: 14px; opacity: 1; }
+
+/* ---------- Grafik posisi kas ---------- */
+.cash-card { position: relative; background: var(--card); border-radius: 24px; padding: 14px 12px 12px; box-shadow: var(--shadow); }
+.cash-head { display: flex; align-items: center; gap: 12px; margin: 0 4px 10px; }
+.cash-head:empty { display: none; }
+.cash-zone { font-weight: 800; font-size: 17px; padding: 8px 12px; border-radius: 16px; white-space: nowrap; }
+.cash-zone.zone-hijau { background: color-mix(in srgb, var(--zone-hijau) 60%, transparent); }
+.cash-zone.zone-kuning { background: color-mix(in srgb, var(--zone-kuning) 60%, transparent); }
+.cash-zone.zone-oranye { background: color-mix(in srgb, var(--zone-oranye) 60%, transparent); }
+.cash-zone.zone-merah { background: color-mix(in srgb, var(--zone-merah) 60%, transparent); }
+.cash-zone-text { font-size: 13px; line-height: 1.4; }
+.cash-zone-text small { color: var(--muted); }
+.cash-chart { width: 100%; overflow: hidden; touch-action: pan-y; }
+.cash-chart svg { display: block; }
+.cash-chart .axis { font-size: 10px; fill: var(--muted); }
+.cash-line { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.cash-dot { fill: var(--text); stroke: var(--card); stroke-width: 2; }
+.cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.cash-tip {
+  position: absolute; top: 64px; background: var(--text); color: var(--bg); border-radius: 14px; padding: 8px 12px;
+  font-size: 12px; line-height: 1.5; pointer-events: none; box-shadow: var(--shadow-lg); white-space: nowrap;
+}
+.cash-tip strong { font-size: 16px; }
+.cash-tip .tip-date { opacity: .75; }
+.cash-note { font-size: 11px; color: var(--muted); margin: 8px 4px 0; line-height: 1.5; }
+.cash-tip .tip-zone { font-weight: 700; margin-bottom: 2px; }

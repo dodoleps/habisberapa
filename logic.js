@@ -63,6 +63,50 @@
     return { total, rows };
   }
 
+  /**
+   * Posisi kas harian dalam satu bulan.
+   * persen = saldo semua dompet di akhir hari ÷ uang tersedia bulan itu
+   * (saldo awal bulan + pemasukan bulan itu sampai hari tersebut). Pindah antar dompet tidak berpengaruh.
+   * sampai: tanggal terakhir yang dihitung (YYYY-MM-DD), mis. hari ini untuk bulan berjalan.
+   */
+  function cashPosition(txs, bulan, sampai) {
+    const [y, m] = bulan.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    let saldo = 0;
+    const perDay = {};
+    txs.forEach((t) => {
+      const n = Number(t.nominal) || 0;
+      const delta = t.jenis === 'masuk' ? n : t.jenis === 'keluar' ? -n : 0;
+      if (t.tanggal < bulan + '-01') { saldo += delta; return; }
+      if (monthOf(t.tanggal) !== bulan) return;
+      const d = perDay[t.tanggal] || (perDay[t.tanggal] = { masuk: 0, keluar: 0 });
+      if (t.jenis === 'masuk') d.masuk += n;
+      if (t.jenis === 'keluar') d.keluar += n;
+    });
+    const saldoAwal = saldo;
+    let tersedia = saldoAwal;
+    const out = [];
+    for (let day = 1; day <= lastDay; day++) {
+      const tanggal = bulan + '-' + String(day).padStart(2, '0');
+      if (sampai && tanggal > sampai) break;
+      const d = perDay[tanggal] || { masuk: 0, keluar: 0 };
+      saldo += d.masuk - d.keluar;
+      tersedia += d.masuk;
+      const persen = tersedia > 0 ? Math.max(0, Math.min(1, saldo / tersedia)) : null;
+      out.push({ tanggal, saldo, tersedia, masuk: d.masuk, keluar: d.keluar, persen });
+    }
+    return { saldoAwal, days: out };
+  }
+
+  /** Zona posisi kas: 'hijau' (> 75%), 'kuning' (50–75%), 'oranye' (25–50%), 'merah' (< 25%). */
+  const CASH_LEVELS = [0.75, 0.5, 0.25];
+  function cashZone(persen) {
+    if (persen > 0.75) return 'hijau';
+    if (persen >= 0.5) return 'kuning';
+    if (persen >= 0.25) return 'oranye';
+    return 'merah';
+  }
+
   // ---------- Parser sederhana untuk MODE DEMO (tanpa AI) ----------
 
   const SLANG = { gopek: 500, seceng: 1000, goceng: 5000, ceban: 10000, gocap: 50000, cepek: 100000 };
@@ -148,7 +192,7 @@
     return out;
   }
 
-  const api = { UTAMA_ID, computeWallets, monthSummary, categoryReport, parseDemo, parseAmount, sortTx, monthOf };
+  const api = { UTAMA_ID, computeWallets, monthSummary, categoryReport, cashPosition, cashZone, CASH_LEVELS, parseDemo, parseAmount, sortTx, monthOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.HBLogic = api;
 })(this);

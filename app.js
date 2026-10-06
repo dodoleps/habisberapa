@@ -100,6 +100,29 @@
   const ICON = { 'Makan & Minum': '🍜', Transportasi: '🛵', Belanja: '🛍️', Tagihan: '🧾', Kesehatan: '💊',
     Hiburan: '🎬', Keluarga: '👨‍👩‍👧', Gaji: '💼', Bonus: '🎁', 'Pindah dana': '🔁' };
 
+  /** Warna pastel tiap dompet: tetap sama selama dompet ada (berdasarkan urutan dibuat). */
+  const WALLET_COLORS = 8;   // warna otomatis bergilir di 8 warna pertama
+  const PICK_COLORS = 12;    // pilihan warna yang bisa dipilih sendiri
+  const COLOR_NAMES = ['Mint', 'Peach', 'Lavender', 'Biru langit', 'Kuning', 'Pink', 'Sage', 'Aqua',
+    'Periwinkle', 'Aprikot', 'Ungu muda', 'Abu biru'];
+  function walletColorIndex(id) {
+    const w = S.wallets.find((x) => x.id === id);
+    if (!w) return 0;
+    if (w.warna !== undefined && w.warna !== '') return Number(w.warna) % PICK_COLORS;
+    return (Number(w.urutan) || 0) % WALLET_COLORS;
+  }
+  function walletColor(id) { return 'wc-' + walletColorIndex(id); }
+  function walletEmoji(nama) {
+    const n = String(nama).toLowerCase();
+    const rules = [[/utama|harian|dompet/, '💳'], [/makan|jajan|kopi|food|dapur/, '🍜'], [/bensin|motor|mobil|transport|ojek|bbm/, '⛽'],
+      [/tabung|nabung|saving|invest/, '🐷'], [/darurat|cadangan/, '🛟'], [/belanja|bulanan|groceries/, '🛒'],
+      [/tagihan|listrik|air|internet|pulsa|cicilan|kos|sewa/, '🧾'], [/sekolah|kuliah|pendidikan|anak|spp/, '🎓'],
+      [/liburan|jalan|travel|hiburan|nonton/, '🏖️'], [/sehat|obat|dokter/, '💊'], [/zakat|sedekah|amal|infak/, '🤲'],
+      [/hadiah|kado|arisan/, '🎁'], [/rumah|renov/, '🏠'], [/pet|kucing|anjing/, '🐾']];
+    const hit = rules.find(([re]) => re.test(n));
+    return hit ? hit[1] : '👛';
+  }
+
   function computed() { return L.computeWallets(S.wallets, S.transactions); }
 
   // ---------- Render ----------
@@ -108,6 +131,9 @@
     const cw = computed();
     const aktif = cw.filter((w) => !w.arsip);
     $('total-saldo').textContent = rp(aktif.reduce((s, w) => s + w.saldo, 0));
+    const me = DEMO ? null : session();
+    const first = me && (me.nama || me.email || '').split(/[\s@]/)[0];
+    $('hello').textContent = 'Halo' + (first ? ', ' + first : '') + ' 👋';
     renderHome(cw);
     if (S.tab === 'history') renderHistory();
     if (S.tab === 'report') renderReport();
@@ -125,12 +151,13 @@
     const byId = Object.fromEntries(cw.map((w) => [w.id, w]));
     $('wallet-grid').innerHTML = activeWallets().map((w0) => {
       const w = byId[w0.id];
-      const note = { menipis: 'Hampir habis', habis: w.saldo < 0 ? 'Minus!' : 'Habis', kosong: 'Belum diisi', aman: '' }[w.status];
-      return '<button class="wallet" data-status="' + w.status + '" data-wallet="' + esc(w.id) + '">' +
+      const note = { menipis: 'Hampir habis', habis: w.saldo < 0 ? 'Minus' : 'Habis', kosong: 'Belum diisi', aman: '' }[w.status];
+      return '<button class="wallet ' + walletColor(w.id) + '" data-status="' + w.status + '" data-wallet="' + esc(w.id) + '">' +
+        '<div class="wallet-top"><span class="wallet-emoji">' + walletEmoji(w.nama) + '</span>' +
+        (note ? '<span class="badge">' + note + '</span>' : '') + '</div>' +
         '<div class="wallet-name">' + esc(w.nama) + '</div>' +
         '<div class="wallet-saldo">' + rp(w.saldo) + '</div>' +
-        '<div class="bar"><i style="width:' + Math.round(w.persen * 100) + '%"></i></div>' +
-        '<div class="wallet-note">' + note + '</div></button>';
+        '<div class="bar"><i style="width:' + Math.round(w.persen * 100) + '%"></i></div></button>';
     }).join('');
 
     const recent = S.transactions.slice().sort((a, b) => String(b.dibuat).localeCompare(String(a.dibuat))).slice(0, 6);
@@ -151,7 +178,8 @@
     }
     if (S.tab === 'home' && t.tanggal !== todayStr()) sub += ' · ' + fmtDay(t.tanggal);
     return '<button class="tx' + (S.newIds.has(t.id) ? ' new' : '') + '" data-tx="' + esc(t.id) + '">' +
-      '<span class="tx-icon">' + (ICON[t.kategori] || (t.jenis === 'masuk' ? '💰' : '💸')) + '</span>' +
+      '<span class="tx-icon ' + walletColor(t.jenis === 'pindah' ? t.dompet_tujuan_id : t.dompet_id) + '">' +
+        (ICON[t.kategori] || (t.jenis === 'masuk' ? '💰' : '💸')) + '</span>' +
       '<span class="tx-main"><div class="tx-title">' + esc(t.keterangan || t.kategori) + '</div>' +
       '<div class="tx-sub">' + esc(sub) + '</div></span>' +
       '<span class="tx-amt ' + cls + '">' + amt + '</span></button>';
@@ -194,10 +222,10 @@
     $('r-month').textContent = fmtMonth(m);
     $('r-summary').innerHTML = statsHtml(L.monthSummary(S.transactions, m));
     const rep = L.categoryReport(S.transactions, m);
-    $('r-cats').innerHTML = rep.rows.length ? rep.rows.map((r) =>
-      '<button class="cat-row tx" style="display:block" data-cat-report="' + esc(r.kategori) + '">' +
+    $('r-cats').innerHTML = rep.rows.length ? rep.rows.map((r, i) =>
+      '<button class="cat-row tx wc-' + (i % WALLET_COLORS) + '" style="display:block" data-cat-report="' + esc(r.kategori) + '">' +
       '<div class="cat-top"><span>' + (ICON[r.kategori] || '💸') + ' ' + esc(r.kategori) + '</span><span>' + rp(r.total) + '</span></div>' +
-      '<div class="bar"><i style="width:' + Math.round(r.persen * 100) + '%;background:var(--out)"></i></div>' +
+      '<div class="bar"><i style="width:' + Math.round(r.persen * 100) + '%"></i></div>' +
       '<div class="cat-pct">' + Math.round(r.persen * 100) + '% dari total pengeluaran</div></button>').join('')
       : '<div class="empty">Belum ada pengeluaran di bulan ini.</div>';
   }
@@ -205,7 +233,7 @@
   function renderSettings(cw) {
     const byId = Object.fromEntries(cw.map((w) => [w.id, w]));
     $('s-wallets').innerHTML = activeWallets().map((w) =>
-      '<button class="list-item" data-edit-wallet="' + esc(w.id) + '"><span>' + esc(w.nama) +
+      '<button class="list-item ' + walletColor(w.id) + '" data-edit-wallet="' + esc(w.id) + '"><span><i class="dot"></i>' + walletEmoji(w.nama) + ' ' + esc(w.nama) +
       (w.id === L.UTAMA_ID ? ' <small>(utama)</small>' : '') + '</span><small>' + rp(byId[w.id].saldo) + ' ›</small></button>').join('');
     ['keluar', 'masuk'].forEach((j) => {
       $('s-cats-' + j).innerHTML = catsOf(j).map((c) =>
@@ -411,12 +439,35 @@
   async function editWallet(id) {
     const w = S.wallets.find((x) => x.id === id);
     const saldo = computed().find((x) => x.id === id).saldo;
-    openSheet('<h3>' + esc(w.nama) + '</h3><p>Saldo: <strong>' + rp(saldo) + '</strong></p>' +
+    const cur = walletColorIndex(id);
+    openSheet('<h3>' + walletEmoji(w.nama) + ' ' + esc(w.nama) + '</h3><p>Saldo: <strong>' + rp(saldo) + '</strong></p>' +
+      '<div class="field"><label>Warna dompet</label><div class="swatches">' +
+      Array.from({ length: PICK_COLORS }, (_, i) => '<button class="swatch wc-' + i + (i === cur ? ' on' : '') +
+        '" data-color="' + i + '" aria-label="' + COLOR_NAMES[i] + '"></button>').join('') + '</div></div>' +
       '<div class="list"><button class="list-item" id="ew-rename">Ganti nama</button>' +
       '<button class="list-item" id="ew-history">Lihat riwayat dompet ini</button>' +
       (id === L.UTAMA_ID ? '' : '<button class="list-item danger-text" id="ew-del">Hapus dompet</button>') + '</div>' +
       '<div class="btn-row"><button class="btn" id="ew-close">Tutup</button></div>', (el) => {
       el.querySelector('#ew-close').onclick = closeSheet;
+      el.querySelectorAll('[data-color]').forEach((b) => {
+        b.onclick = async () => {
+          const warna = Number(b.dataset.color);
+          if (warna === walletColorIndex(id)) return;
+          el.querySelectorAll('[data-color]').forEach((x) => x.classList.toggle('on', x === b));
+          // Langsung tampilkan warnanya, lalu simpan ke server.
+          const prev = w.warna;
+          w.warna = String(warna);
+          render();
+          try {
+            await api('setWalletColor', { id, warna });
+            toast('Warna ' + w.nama + ': ' + COLOR_NAMES[warna]);
+          } catch (e) {
+            w.warna = prev;
+            render();
+            toast(e.message, 4000);
+          }
+        };
+      });
       el.querySelector('#ew-history').onclick = () => { closeSheet(); showWalletHistory(id); };
       el.querySelector('#ew-rename').onclick = async () => {
         const nama = await askText('Nama dompet', w.nama);

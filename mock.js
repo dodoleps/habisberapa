@@ -69,6 +69,7 @@
       db.wallets.push(w);
       return w;
     },
+    setWalletColor: (db, req) => { db.wallets.find((w) => w.id === req.id).warna = String(req.warna); return req.id; },
     renameWallet: (db, req) => { db.wallets.find((w) => w.id === req.id).nama = req.nama.trim(); return req.id; },
     deleteWallet: (db, req) => {
       if (req.id === L.UTAMA_ID) throw new Error('Dompet Utama tidak bisa dihapus');

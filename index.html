@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Habis Berapa</title>
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141816" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,6 +13,9 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -33,12 +37,15 @@
   </section>
 
   <div id="app" hidden>
-    <header class="topbar">
-      <div>
-        <div class="topbar-label">Total semua dompet</div>
-        <div class="topbar-total" id="total-saldo">Rp0</div>
+    <header class="hero">
+      <div class="hero-top">
+        <div class="hello" id="hello">Halo 👋</div>
+        <button class="icon-btn" id="btn-refresh" aria-label="Muat ulang">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
+        </button>
       </div>
-      <button class="icon-btn" id="btn-refresh" aria-label="Muat ulang">⟳</button>
+      <div class="hero-label">Total semua dompet</div>
+      <div class="hero-total" id="total-saldo">Rp0</div>
     </header>
     <div class="demo-banner" id="demo-banner" hidden>Mode demo: data hanya tersimpan di browser ini.</div>
 
@@ -123,10 +130,10 @@
     </div>
 
     <nav class="tabbar">
-      <button data-tab="home" class="active"><span>🏠</span>Beranda</button>
-      <button data-tab="history"><span>📜</span>Riwayat</button>
-      <button data-tab="report"><span>📊</span>Laporan</button>
-      <button data-tab="settings"><span>⚙️</span>Atur</button>
+      <button data-tab="home" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>Beranda</button>
+      <button data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="4"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Riwayat</button>
+      <button data-tab="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>Laporan</button>
+      <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Atur</button>
     </nav>
   </div>
 

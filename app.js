@@ -3,7 +3,9 @@
   const L = window.HBLogic;
   const API_URL = (window.HB_CONFIG && window.HB_CONFIG.API_URL || '').trim();
   const DEMO = !API_URL;
-  const PIN_KEY = 'hb_pin';
+  const CLIENT_ID = (window.HB_CONFIG && window.HB_CONFIG.GOOGLE_CLIENT_ID || '').trim();
+  const SESSION_KEY = 'hb_session';   // { token, email, nama, owner }
+  const LOGIN_KEY = 'hb_login';       // { state, nonce } selama proses login Google
   const MAX_REC_SEC = 60;
   const BACKUP_AFTER_MS = 9000; // jalur cadangan dikirim kalau 9 detik belum ada jawaban
 
@@ -50,7 +52,7 @@
         method: 'POST',
         // text/plain supaya tidak memicu pemeriksaan CORS tambahan dari Apps Script
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, pin: localStorage.getItem(PIN_KEY) || '', ...(req || {}) }),
+        body: JSON.stringify({ action, token: session() ? session().token : '', ...(req || {}) }),
       });
     } catch (e) {
       throw new Error('Tidak bisa terhubung. Periksa koneksi internet.');
@@ -60,7 +62,7 @@
     if (!body.ok) {
       const err = new Error(body.error || 'Terjadi kesalahan');
       err.code = body.code;
-      if (body.code === 'pin' && action !== 'ping') lock('PIN berubah atau salah. Masukkan lagi.');
+      if (body.code === 'auth' && action !== 'login') logout(body.error);
       throw err;
     }
     return body.data;
@@ -222,7 +224,13 @@
           (x.s === 200 ? '✓' : x.s) + ' ' + secs(x.ms)).join(' → ') : '') + '</small></span>';
     }
     $('btn-reset-demo').hidden = !DEMO;
-    $('btn-lock').hidden = DEMO;
+    const me = session();
+    $('btn-logout').hidden = DEMO || !me;
+    $('s-account').hidden = DEMO || !me;
+    if (me) $('s-account').innerHTML = '<span>👤 ' + esc(me.nama || me.email) + '<br><small>' + esc(me.email) +
+      (me.owner ? ' · pemilik' : '') + '</small></span>';
+    $('s-testers-wrap').hidden = DEMO || !me || !me.owner;
+    if (me && me.owner) renderTesters();
   }
 
   // ---------- Tab ----------
@@ -513,7 +521,7 @@
           pending--;
           lastErr = err;
           if (finished) return;
-          if (err.code === 'pin' || err.code === 'locked') { finished = true; clearTimeout(timer); reject(err); return; }
+          if (err.code === 'auth' || err.code === 'forbidden') { finished = true; clearTimeout(timer); reject(err); return; }
           if (!backupSent && !DEMO) { clearTimeout(timer); backup(); return; }
           if (pending === 0) { finished = true; reject(lastErr); }
         });
@@ -605,50 +613,116 @@
     });
   }
 
-  // ---------- PIN ----------
+  // ---------- Login Google ----------
+  // Memakai pengalihan halaman (bukan pop-up) supaya juga berjalan di aplikasi layar utama iPhone.
 
-  let pinBuf = '';
-  function lock(msg) {
-    localStorage.removeItem(PIN_KEY);
+  function session() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; }
+  }
+
+  function randomStr() {
+    const a = new Uint8Array(16);
+    crypto.getRandomValues(a);
+    return Array.from(a, (x) => x.toString(16).padStart(2, '0')).join('');
+  }
+
+  /** Alamat aplikasi ini tanpa "index.html", harus sama persis dengan yang didaftarkan di Google Cloud. */
+  function appUrl() {
+    return location.origin + location.pathname.replace(/index\.html$/, '');
+  }
+
+  function logout(msg) {
+    localStorage.removeItem(SESSION_KEY);
     $('app').hidden = true;
-    $('pin-screen').hidden = false;
-    pinBuf = '';
-    drawPin();
-    $('pin-error').textContent = msg || '';
+    $('login-screen').hidden = false;
+    $('btn-login').disabled = false;
+    $('login-error').textContent = msg || '';
   }
-  function drawPin() {
-    $('pin-dots').innerHTML = Array.from({ length: Math.max(4, pinBuf.length) }, (_, i) => '<i class="' + (i < pinBuf.length ? 'on' : '') + '"></i>').join('');
+
+  function startLogin() {
+    if (!CLIENT_ID) {
+      $('login-error').textContent = 'Client ID Google belum diisi di config.js.';
+      return;
+    }
+    const st = { state: randomStr(), nonce: randomStr() };
+    localStorage.setItem(LOGIN_KEY, JSON.stringify(st));
+    const q = new URLSearchParams({
+      client_id: CLIENT_ID, redirect_uri: appUrl(), response_type: 'id_token', scope: 'openid email profile',
+      state: st.state, nonce: st.nonce, prompt: 'select_account',
+    });
+    $('btn-login').disabled = true;
+    location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + q.toString();
   }
-  function buildPinPad() {
-    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'hapus', '0', 'OK'];
-    $('pin-pad').innerHTML = keys.map((k) => '<button class="' + (k.length > 1 ? 'plain' : '') + '" data-k="' + k + '">' +
-      (k === 'hapus' ? '⌫' : k) + '</button>').join('');
-    $('pin-pad').onclick = async (e) => {
-      const k = e.target.closest('button') && e.target.closest('button').dataset.k;
-      if (!k) return;
-      if (k === 'hapus') pinBuf = pinBuf.slice(0, -1);
-      else if (k === 'OK') { await tryPin(); return; }
-      else if (pinBuf.length < 12) pinBuf += k;
-      drawPin();
-    };
-  }
-  async function tryPin() {
-    if (pinBuf.length < 4) { $('pin-error').textContent = 'PIN minimal 4 angka'; return; }
-    localStorage.setItem(PIN_KEY, pinBuf);
-    $('pin-error').textContent = 'Memeriksa…';
+
+  /** Dipanggil saat Google mengembalikan pengguna ke aplikasi dengan #id_token=... */
+  async function finishLogin() {
+    const p = new URLSearchParams(location.hash.slice(1));
+    history.replaceState(null, '', appUrl()); // buang token dari alamat
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(LOGIN_KEY)); } catch (e) { /* abaikan */ }
+    localStorage.removeItem(LOGIN_KEY);
+    logout();
+    if (p.get('error')) {
+      $('login-error').textContent = p.get('error') === 'access_denied'
+        ? 'Login dibatalkan atau ditolak Google. Kalau Anda tidak membatalkan, minta pemilik aplikasi mendaftarkan email Anda sebagai Test user.' :
+        'Login Google gagal (' + p.get('error') + '). Alamat yang harus didaftarkan: ' + appUrl();
+      return;
+    }
+    if (!st || p.get('state') !== st.state) {
+      $('login-error').textContent = 'Login tidak valid. Silakan coba lagi.';
+      return;
+    }
+    $('btn-login').disabled = true;
+    $('login-error').textContent = 'Memeriksa akun…';
     try {
-      await api('ping');
+      const out = await api('login', { idToken: p.get('id_token'), nonce: st.nonce });
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ token: out.token, email: out.email, nama: out.nama, owner: out.owner }));
+      $('login-error').textContent = '';
       showApp();
     } catch (e) {
-      localStorage.removeItem(PIN_KEY);
-      pinBuf = '';
-      drawPin();
-      $('pin-error').textContent = e.message;
+      logout(e.message);
+    }
+  }
+
+  // ---------- Penguji (khusus pemilik) ----------
+
+  async function renderTesters() {
+    try {
+      const users = await api('users');
+      $('s-testers').innerHTML = users.map((u) =>
+        '<div class="list-item"><span>' + esc(u.nama || u.email) + '<br><small>' + esc(u.email) + '</small></span>' +
+        (u.owner ? '<small>pemilik</small>' : '<button class="link-btn danger-text" data-remove-user="' + esc(u.email) + '">Hapus</button>') +
+        '</div>').join('');
+      $('s-testers').querySelectorAll('[data-remove-user]').forEach((b) => {
+        b.onclick = async () => {
+          const email = b.dataset.removeUser;
+          if (await confirmBox('Cabut akses ' + email + '? Datanya tetap tersimpan di Google Sheets.', 'Cabut')) {
+            await run(() => api('removeUser', { email }), 'Akses dicabut');
+          }
+        };
+      });
+    } catch (e) {
+      $('s-testers').innerHTML = '<div class="list-item"><small>' + esc(e.message) + '</small></div>';
+    }
+  }
+
+  async function addTester() {
+    const email = await askText('Email Google penguji', '', 'nama@gmail.com');
+    if (!email) return;
+    const nama = await askText('Nama penguji (boleh dikosongkan)', '', 'mis. Andi');
+    const ok = await run(() => api('addUser', { email, nama: nama || '' }), email + ' sudah terdaftar di aplikasi');
+    if (ok) {
+      openSheet('<h3>Satu langkah lagi</h3><p>Tambahkan juga <b>' + esc(email) + '</b> sebagai <b>Test user</b> di Google Cloud:</p>' +
+        '<p class="transcript">Google Auth Platform → Audience → Test users → + Add users</p>' +
+        '<p>Tanpa itu, Google akan menolak login penguji ini.</p>' +
+        '<div class="btn-row"><button class="btn primary" id="tu-ok">Mengerti</button></div>', (el) => {
+        el.querySelector('#tu-ok').onclick = closeSheet;
+      });
     }
   }
 
   function showApp() {
-    $('pin-screen').hidden = true;
+    $('login-screen').hidden = true;
     $('app').hidden = false;
     $('demo-banner').hidden = !DEMO;
     setTab('home');
@@ -679,7 +753,11 @@
         if (nama) await run(() => api('addCategory', { nama, jenis: b.dataset.addCat }), 'Kategori dibuat');
       };
     });
-    $('btn-lock').onclick = () => lock();
+    $('btn-logout').onclick = async () => {
+      if (await confirmBox('Keluar dari akun ini di HP ini?', 'Keluar')) logout();
+    };
+    $('btn-login').onclick = startLogin;
+    $('btn-add-user').onclick = addTester;
     $('btn-reset-demo').onclick = async () => {
       if (await confirmBox('Hapus semua data demo di browser ini?', 'Hapus')) {
         window.HBMock.reset(); S.newIds.clear(); S.transkrip = ''; refresh();
@@ -724,9 +802,10 @@
   // ---------- Mulai ----------
 
   bind();
-  buildPinPad();
-  if (DEMO || localStorage.getItem(PIN_KEY)) showApp();
-  else lock();
+  if (DEMO) showApp();
+  else if (location.hash.indexOf('id_token=') >= 0 || location.hash.indexOf('error=') >= 0) finishLogin();
+  else if (session()) showApp();
+  else logout();
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});

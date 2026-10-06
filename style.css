@@ -221,3 +221,12 @@ main { padding: 0 16px; }
 .month-strip { grid-template-columns: 1fr 1fr; }
 .month-strip .stat:nth-child(3) { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; padding: 8px 12px; }
 .stat-value { font-size: 16px; }
+
+/* ---------- Login Google ---------- */
+.google-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+  margin-top: 28px; padding: 13px 16px; border-radius: 12px; border: 1px solid var(--line);
+  background: #fff; color: #1f1f1f; font-weight: 600; box-shadow: var(--shadow);
+}
+.google-btn:disabled { opacity: .6; }
+.login-note { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 18px !important; }

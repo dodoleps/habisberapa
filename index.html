@@ -15,15 +15,20 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Layar PIN -->
-  <section id="pin-screen" class="pin-screen" hidden>
+  <!-- Layar login -->
+  <section id="login-screen" class="pin-screen" hidden>
     <div class="pin-box">
       <img src="icons/icon-192.png" alt="" class="pin-logo">
       <h1>Habis Berapa</h1>
-      <p>Masukkan PIN</p>
-      <div class="pin-dots" id="pin-dots"></div>
-      <p class="pin-error" id="pin-error"></p>
-      <div class="pin-pad" id="pin-pad"></div>
+      <p>Catat keuangan cukup dengan suara</p>
+      <button class="google-btn" id="btn-login">
+        <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.2-13.5-9.9l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>
+        Masuk dengan Google
+      </button>
+      <p class="pin-error" id="login-error"></p>
+      <p class="login-note">Hanya email yang sudah didaftarkan pemilik aplikasi yang bisa masuk.
+        Data Anda tersimpan di Google Sheets milik pemilik aplikasi, terpisah dari pengguna lain,
+        dan dapat dilihat oleh pemilik.</p>
     </div>
   </section>
 
@@ -91,11 +96,18 @@
         <div class="list" id="s-cats-keluar"></div>
         <div class="section-head"><h2>Kategori pemasukan</h2><button class="link-btn" data-add-cat="masuk">+ Kategori</button></div>
         <div class="list" id="s-cats-masuk"></div>
+        <div id="s-testers-wrap" hidden>
+          <div class="section-head"><h2>Penguji</h2><button class="link-btn" id="btn-add-user">+ Penguji</button></div>
+          <div class="list" id="s-testers"></div>
+          <p class="login-note" style="text-align:left">Penguji masuk dengan akun Google-nya dan punya data sendiri. Daftarkan emailnya juga sebagai
+            <b>Test user</b> di Google Cloud. Kuota AI gratis Anda dipakai bersama.</p>
+        </div>
         <h2>Aplikasi</h2>
         <div class="list">
           <div class="list-item"><span id="s-conn"></span></div>
           <div class="list-item" id="s-timing" hidden></div>
-          <button class="list-item danger-text" id="btn-lock">Kunci aplikasi (minta PIN lagi)</button>
+          <div class="list-item" id="s-account" hidden></div>
+          <button class="list-item danger-text" id="btn-logout" hidden>Keluar dari akun</button>
           <button class="list-item danger-text" id="btn-reset-demo" hidden>Hapus semua data demo</button>
         </div>
       </section>

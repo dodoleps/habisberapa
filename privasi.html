@@ -29,6 +29,7 @@
     p, li { max-width: 66ch; }
     ul { padding-left: 20px; }
     a { color: var(--brand); font-weight: 600; }
+    code { font-size: .9em; background: var(--soft); padding: 1px 6px; border-radius: 6px; }
     .back { display: inline-block; margin-top: 8px; text-decoration: none; }
   </style>
 </head>
@@ -36,7 +37,7 @@
   <main>
     <div class="top"><img src="icons/icon-192.png" alt=""><strong>Habis Berapa</strong></div>
     <h1>Kebijakan Privasi</h1>
-    <p class="meta">Berlaku sejak 7 Oktober 2026</p>
+    <p class="meta">Berlaku sejak 7 Oktober 2026 · diperbarui 8 Oktober 2026 (cadangan Google Sheets)</p>
 
     <div class="summary">
       <strong>Ringkasnya</strong>
@@ -75,9 +76,17 @@
     </section>
 
     <section>
+      <h2>3b. Cadangan ke Google Sheets (opsional)</h2>
+      <p>Bila Anda memakai <b>Cadangkan ke Google Sheets</b>, aplikasi meminta izin Google Drive terbatas (<code>drive.file</code>):
+        aplikasi hanya bisa membuat dan membuka spreadsheet cadangan yang dibuatnya sendiri, tidak bisa melihat file lain di Drive Anda.
+        Spreadsheet itu tersimpan di Google Drive <b>Anda</b> dan dikirim langsung dari HP ke Google, tanpa melewati server kami.
+        Izin ini hanya berlaku sekitar satu jam setiap kali Anda mencadangkan atau memulihkan.</p>
+    </section>
+
+    <section>
       <h2>4. Pihak yang membantu kami</h2>
       <ul>
-        <li><b>Google</b> — login (Google Sign-In) dan AI (Gemini).</li>
+        <li><b>Google</b> — login (Google Sign-In), AI (Gemini), dan cadangan Google Sheets bila Anda memakainya.</li>
         <li><b>Cloudflare</b> — menjalankan server kami (Workers & database D1).</li>
         <li><b>GitHub Pages</b> — tempat tampilan aplikasi diunduh.</li>
         <li><b>cdnjs</b> — pustaka untuk membuat file PDF/Excel, diunduh saat Anda pertama kali mengekspor.</li>
@@ -90,6 +99,7 @@
       <p>Sesuai Undang-Undang Pelindungan Data Pribadi (UU No. 27 Tahun 2022), Anda berhak mengakses, memperbaiki, dan menghapus data pribadi Anda.</p>
       <ul>
         <li><b>Data di HP</b> — ekspor kapan saja lewat <b>Simpan cadangan</b> atau unduh laporan, dan hapus lewat <b>Atur → Hapus semua data di HP ini</b>.</li>
+        <li><b>Cadangan Google Sheets</b> — ada di Google Drive Anda; hapus kapan saja langsung dari Google Drive.</li>
         <li><b>Data di server</b> (statistik pemakaian & masukan) — minta salinan atau penghapusan melalui menu <b>Kirim masukan</b>.</li>
         <li><b>Akses Google</b> — Anda dapat mencabut akses aplikasi kapan saja di
           <a href="https://myaccount.google.com/permissions" rel="noopener">pengaturan akun Google</a>.</li>

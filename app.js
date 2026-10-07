@@ -317,6 +317,7 @@
     $('r-month').textContent = fmtMonth(m);
     $('r-summary').innerHTML = statsHtml(L.monthSummary(S.transactions, m));
     renderCash();
+    renderCompare();
     const rep = L.categoryReport(S.transactions, m);
     $('r-cats').innerHTML = rep.rows.length ? rep.rows.map((r, i) =>
       '<button class="cat-row tx wc-' + (i % WALLET_COLORS) + '" style="display:block" data-cat-report="' + esc(r.kategori) + '">' +
@@ -898,6 +899,205 @@
     setTab('home');
     await refresh();
     if (!DEMO && LEGACY_SERVER) offerMigrationOnce();
+    if (!META.tutorialSelesai) showTutorial();
+  }
+
+  // ---------- Perbandingan pengeluaran (Laporan) ----------
+
+  function renderCompare() {
+    const n = S.compareN || 3;
+    document.querySelectorAll('#cmp-seg button').forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === n));
+    const c = L.compareMonths(S.transactions, S.reportMonth, n);
+    const cur = c.bulan[c.bulan.length - 1];
+    const box = $('r-compare');
+    if (!c.bulan.some((b) => b.keluar > 0)) {
+      box.innerHTML = '<div class="empty">Belum ada pengeluaran untuk dibandingkan.</div>';
+      return;
+    }
+    const short = (ym) => { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('id-ID', { month: 'short' }); };
+    const max = Math.max(...c.bulan.map((b) => b.keluar), 1);
+    let verdict;
+    if (c.persen === null) verdict = 'Belum ada data pengeluaran di bulan-bulan sebelumnya.';
+    else if (Math.abs(c.persen) < 0.05) verdict = '⚖️ Pengeluaran ' + fmtMonth(cur.bulan) + ' kurang lebih sama dengan rata-rata sebelumnya.';
+    else if (c.persen < 0) verdict = '🎉 Lebih hemat <b>' + Math.round(-c.persen * 100) + '%</b> (' + rp(-c.selisih) + ') dibanding rata-rata ' + c.dibanding + ' bulan sebelumnya.';
+    else verdict = '🔥 Lebih boros <b>' + Math.round(c.persen * 100) + '%</b> (' + rp(c.selisih) + ') dibanding rata-rata ' + c.dibanding + ' bulan sebelumnya.';
+    const partial = cur.bulan === thisMonth() ? '<p class="cmp-note">Bulan ini baru sampai tanggal ' + Number(todayStr().slice(8)) + ', jadi angkanya masih bisa bertambah.</p>' : '';
+    // Garis putus-putus = rata-rata bulan-bulan sebelumnya (digambar di dalam tiap kolom supaya posisinya tepat).
+    const avgPct = c.rataSebelum > 0 ? Math.round((c.rataSebelum / max) * 1000) / 10 : null;
+    const bars = c.bulan.map((b, i) => {
+      const h = Math.round((b.keluar / max) * 100);
+      const last = i === c.bulan.length - 1;
+      return '<div class="cmp-col' + (last ? ' cur' : '') + (b.adaData ? '' : ' nodata') + '" title="' + esc(fmtMonth(b.bulan)) + ': ' +
+        (b.adaData ? rp(b.keluar) : 'belum mulai mencatat') + '">' +
+        '<span class="cmp-val">' + (b.adaData ? rpShort(b.keluar) : '–') + '</span>' +
+        '<div class="cmp-track"><i style="height:' + Math.max(h, b.keluar ? 3 : 0) + '%"></i>' +
+        (avgPct !== null ? '<b class="cmp-avg" style="bottom:' + avgPct + '%"></b>' : '') + '</div>' +
+        '<span class="cmp-label">' + esc(short(b.bulan)) + '</span></div>';
+    }).join('');
+    const rows = c.kategori.slice(0, 8).map((k) => {
+      const up = k.selisih > 0.5, down = k.selisih < -0.5;
+      return '<tr><td>' + (ICON[k.kategori] || '•') + ' ' + esc(k.kategori) + '</td><td>' + rpShort(k.ini) + '</td><td>' + rpShort(k.rata) + '</td>' +
+        '<td class="' + (up ? 'c-out' : down ? 'c-in' : '') + '">' + (up ? '▲ ' : down ? '▼ ' : '') + rpShort(Math.abs(k.selisih)) + '</td></tr>';
+    }).join('');
+    box.innerHTML = '<p class="cmp-verdict">' + verdict + '</p>' + partial +
+      '<div class="cmp-chart">' + bars + '</div>' +
+      (avgPct !== null ? '<p class="cmp-legend"><i></i>rata-rata ' + c.dibanding + ' bulan sebelumnya: ' + rp(c.rataSebelum) + '</p>' : '') +
+      (c.persen === null ? '' : '<div class="cmp-table-wrap"><table class="stat-table cmp-table"><tr><th>Kategori</th><th>' + esc(short(cur.bulan)) +
+        '</th><th>Rata²</th><th>±</th></tr>' + rows + '</table></div>');
+  }
+
+  function rpShort(n) {
+    const a = Math.abs(n);
+    if (a >= 1e6) return 'Rp' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt';
+    if (a >= 1e3) return 'Rp' + Math.round(n / 1e3).toLocaleString('id-ID') + ' rb';
+    return rp(n);
+  }
+
+  // ---------- Tutorial singkat (pertama kali masuk) ----------
+
+  const TUTORIAL = [
+    { icon: '👋', title: 'Halo, bos! Selamat datang', text: 'Habis Berapa siap jawab pertanyaan paling horor tiap akhir bulan: <i>“duitku habis buat apa aja sih?”</i> Tenang, mulai sekarang ada yang nyatetin.' },
+    { icon: '👛', title: 'Dompet = amplop ajaib', text: 'Gajian masuk ke dompet <b>Utama</b>, lalu bagi-bagi ke dompet lain: Uang Makan, Bensin, Tabungan. Persis amplop jaman nenek, bedanya nggak bisa diselipin di bawah kasur. Pakai tombol <b>Bagi uang</b> di Beranda.' },
+    { icon: '🎙️', title: 'Nggak usah ngetik, ngomong aja', text: 'Tekan tombol mic, terus cerita kayak lagi curhat:<br><b>“makan siang 25 ribu, parkir 2 ribu, ambil dari dompet uang makan.”</b><br>Goceng, ceban, cepek? Paham kok. Kalau salah tangkap, ketuk transaksinya terus benerin.' },
+    { icon: '🚦', title: 'Kalau dompet mulai merah…', text: 'Bingkai kuning artinya dompet tinggal dikit. Merah artinya… ya udah, puasa jajan dulu 🙃. Cek juga <b>Laporan</b>: posisi kasmu dari <i>“di atas awan king”</i> sampai <i>“mode survival”</i>, plus perbandingan sama bulan-bulan sebelumnya.' },
+    { icon: '💾', title: 'Datamu, HP-mu, tanggung jawabmu', text: 'Semua catatan cuma disimpan di HP ini, nggak di server mana pun. Jadi rajin-rajin <b>Simpan cadangan</b> ke Excel atau Google Sheets di menu Atur, biar nggak nangis kalau HP nyemplung.' },
+    { icon: '🚀', title: 'Udah, gitu doang!', text: 'Mulai dengan bikin dompet di menu <b>Atur</b>, atau langsung tekan mic dan bilang <b>“gajian 5 juta”</b>. Ada ide atau keluhan? <b>Atur → Kirim masukan</b>. Selamat nyatet!' },
+  ];
+
+  function showTutorial() {
+    let i = 0;
+    const el = $('tutorial');
+    const draw = () => {
+      const s = TUTORIAL[i];
+      el.querySelector('.tut-icon').textContent = s.icon;
+      el.querySelector('.tut-title').textContent = s.title;
+      el.querySelector('.tut-text').innerHTML = s.text;
+      el.querySelector('.tut-dots').innerHTML = TUTORIAL.map((_, k) => '<i class="' + (k === i ? 'on' : '') + '"></i>').join('');
+      el.querySelector('#tut-back').hidden = i === 0;
+      el.querySelector('#tut-skip').hidden = i === TUTORIAL.length - 1;
+      el.querySelector('#tut-next').textContent = i === TUTORIAL.length - 1 ? 'Gas! 🚀' : 'Lanjut';
+    };
+    const done = async () => {
+      el.hidden = true;
+      await api('setMeta', { key: 'tutorialSelesai', value: true });
+    };
+    el.querySelector('#tut-next').onclick = () => { if (i < TUTORIAL.length - 1) { i++; draw(); } else done(); };
+    el.querySelector('#tut-back').onclick = () => { if (i > 0) { i--; draw(); } };
+    el.querySelector('#tut-skip').onclick = done;
+    let x0 = null;
+    el.ontouchstart = (e) => { x0 = e.touches[0].clientX; };
+    el.ontouchend = (e) => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0].clientX - x0;
+      x0 = null;
+      if (dx < -50 && i < TUTORIAL.length - 1) { i++; draw(); }
+      if (dx > 50 && i > 0) { i--; draw(); }
+    };
+    draw();
+    el.hidden = false;
+  }
+
+  // ---------- Cadangan ke Google Sheets ----------
+
+  const GTOKEN_KEY = 'hb_gtoken';     // izin Google Sheets sementara (±1 jam), hanya di sesi browser ini
+  const GPENDING_KEY = 'hb_gpending'; // aksi yang menunggu izin: { state, action }
+
+  function sheetsToken() {
+    try {
+      const t = JSON.parse(sessionStorage.getItem(GTOKEN_KEY));
+      const me = session();
+      if (t && t.exp > Date.now() + 60000 && me && t.email === me.email) return t.token;
+    } catch (e) { /* abaikan */ }
+    return null;
+  }
+
+  /** Pastikan ada izin Google Sheets; kalau belum, pindah ke halaman izin Google lalu lanjut otomatis. */
+  function withSheets(action) {
+    const token = sheetsToken();
+    if (token) return runSheetsAction(action, token);
+    const st = 'gs.' + randomStr();
+    localStorage.setItem(GPENDING_KEY, JSON.stringify({ state: st, action }));
+    location.href = window.HBSheets.authUrl({ clientId: CLIENT_ID, redirect: appUrl(), state: st, email: session().email });
+  }
+
+  /** Dipanggil saat Google mengembalikan pengguna dengan #access_token=... */
+  async function finishSheetsAuth() {
+    const p = new URLSearchParams(location.hash.slice(1));
+    history.replaceState(null, '', appUrl());
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem(GPENDING_KEY)); } catch (e) { /* abaikan */ }
+    localStorage.removeItem(GPENDING_KEY);
+    await showApp();
+    if (!pending || p.get('state') !== pending.state) { toast('Izin Google tidak valid. Coba lagi.'); return; }
+    if (p.get('error') || !p.get('access_token')) {
+      toast(p.get('error') === 'access_denied' ? 'Izin Google Sheets dibatalkan.' : 'Izin Google gagal: ' + (p.get('error') || '-'), 5000);
+      return;
+    }
+    if (!/drive\.file/.test(p.get('scope') || '')) {
+      toast('Centang izin Google Drive supaya cadangan bisa dibuat. Coba lagi.', 6000);
+      return;
+    }
+    const token = p.get('access_token');
+    sessionStorage.setItem(GTOKEN_KEY, JSON.stringify({ token, email: session().email, exp: Date.now() + Number(p.get('expires_in') || 3600) * 1000 }));
+    setTab('settings');
+    runSheetsAction(pending.action, token);
+  }
+
+  async function runSheetsAction(action, token) {
+    try {
+      if (action === 'backup') await sheetsBackup(token);
+      else if (action === 'restore') await sheetsRestore(token);
+    } catch (e) {
+      if (e.code === 'auth') sessionStorage.removeItem(GTOKEN_KEY);
+      toast(e.message, 6000);
+    }
+  }
+
+  async function sheetsBackup(token) {
+    const me = session();
+    const knownId = await api('getMeta', { key: 'sheetsId' });
+    const r = await withBusy('Menyimpan ke Google Sheets…', () => window.HBSheets.backup(token, window.HBStore.snapshot(),
+      { dibuat: new Date().toISOString(), akun: me ? me.email : '' }, knownId));
+    await api('setMeta', { key: 'sheetsId', value: r.id });
+    META.sheetsId = r.id;
+    META.lastBackup = new Date().toISOString();
+    await api('setMeta', { key: 'lastBackup', value: META.lastBackup });
+    await api('setMeta', { key: 'lastSheetsBackup', value: META.lastBackup });
+    META.lastSheetsBackup = META.lastBackup;
+    render();
+    openSheet('<h3>Tersimpan di Google Sheets ✅</h3><p>' + window.HBStore.snapshot().transactions.length + ' transaksi sudah dicadangkan ke Google Drive Anda.</p>' +
+      '<p class="transcript">Cadangan berikutnya akan memperbarui spreadsheet yang sama.</p>' +
+      '<div class="btn-row"><button class="btn" id="gs-close">Tutup</button><a class="btn primary" id="gs-open" href="' + esc(r.url) +
+      '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">Buka spreadsheet</a></div>', (el) => {
+      el.querySelector('#gs-close').onclick = closeSheet;
+    });
+  }
+
+  async function sheetsRestore(token) {
+    const file = await withBusy('Mencari cadangan di Google Drive…', () => window.HBSheets.findLatest(token));
+    if (!file) { toast('Belum ada cadangan Google Sheets dari aplikasi ini di akun Google Anda.', 5000); return; }
+    const data = await withBusy('Membaca cadangan…', () => window.HBSheets.read(token, file.id));
+    const when = fmtDateTime(file.modifiedTime);
+    if (!(await confirmBox('Pulihkan dari "' + file.name + '" (diperbarui ' + when + ', ' + data.transactions.length +
+      ' transaksi)? Data yang sekarang ada di HP ini akan diganti.', 'Pulihkan'))) return;
+    const r = await api('replaceAll', { data });
+    await api('setMeta', { key: 'sheetsId', value: file.id });
+    META.sheetsId = file.id;
+    S.newIds.clear(); S.transkrip = '';
+    await refresh();
+    toast('Berhasil dipulihkan dari Google Sheets: ' + r.transaksi + ' transaksi');
+  }
+
+  /** Pilihan cadangan dari banner pengingat. */
+  function chooseBackup() {
+    openSheet('<h3>Simpan cadangan ke…</h3><div class="list">' +
+      (DEMO ? '' : '<button class="list-item" id="cb-sheets"><span>🟩 Google Sheets <small>(di Google Drive Anda)</small></span><small>›</small></button>') +
+      '<button class="list-item" id="cb-excel"><span>💾 File Excel <small>(simpan di HP / kirim ke WA)</small></span><small>›</small></button></div>' +
+      '<div class="btn-row"><button class="btn" id="cb-close">Batal</button></div>', (el) => {
+      el.querySelector('#cb-close').onclick = closeSheet;
+      el.querySelector('#cb-excel').onclick = () => { closeSheet(); makeBackup(); };
+      if (!DEMO) el.querySelector('#cb-sheets').onclick = () => { closeSheet(); withSheets('backup'); };
+    });
   }
 
   // ---------- Data di HP: cadangan, pulihkan, laporan, pindahan ----------
@@ -908,6 +1108,9 @@
   async function loadMeta() {
     META.lastBackup = await api('getMeta', { key: 'lastBackup' });
     META.migrasiDicek = await api('getMeta', { key: 'migrasiDicek' });
+    META.tutorialSelesai = await api('getMeta', { key: 'tutorialSelesai' });
+    META.sheetsId = await api('getMeta', { key: 'sheetsId' });
+    META.lastSheetsBackup = await api('getMeta', { key: 'lastSheetsBackup' });
   }
 
   function daysSince(iso) {
@@ -931,7 +1134,11 @@
 
   function renderDataInfo() {
     $('s-data-info').innerHTML = '<span>📱 Data tersimpan di HP ini<br><small>' + S.transactions.length + ' transaksi · ' +
-      (META.lastBackup ? 'cadangan terakhir ' + esc(fmtDateTime(META.lastBackup)) : 'belum pernah dicadangkan') + '</small></span>';
+      (META.lastBackup ? 'cadangan terakhir ' + esc(fmtDateTime(META.lastBackup)) : 'belum pernah dicadangkan') +
+      (META.sheetsId ? '<br><a href="https://docs.google.com/spreadsheets/d/' + esc(META.sheetsId) + '" target="_blank" rel="noopener">Buka cadangan Google Sheets</a>' : '') +
+      '</small></span>';
+    $('btn-sheets-backup').hidden = DEMO;
+    $('btn-sheets-restore').hidden = DEMO;
   }
 
   /**
@@ -1104,7 +1311,11 @@
     $('btn-migrate').onclick = () => migrateFromSheets(false);
     $('btn-report-pdf').onclick = () => exportReport('pdf');
     $('btn-report-xlsx').onclick = () => exportReport('xlsx');
-    $('backup-banner').onclick = (e) => { if (e.target.closest('[data-backup-now]')) makeBackup(); };
+    $('backup-banner').onclick = (e) => { if (e.target.closest('[data-backup-now]')) chooseBackup(); };
+    $('btn-sheets-backup').onclick = () => withSheets('backup');
+    $('btn-sheets-restore').onclick = () => withSheets('restore');
+    $('btn-tutorial').onclick = showTutorial;
+    $('cmp-seg').onclick = (e) => { const b = e.target.closest('[data-n]'); if (b) { S.compareN = Number(b.dataset.n); renderCompare(); } };
     $('btn-logout').onclick = async () => {
       if (await confirmBox('Keluar dari akun ini di HP ini?', 'Keluar')) logout();
     };
@@ -1164,6 +1375,8 @@
 
   bind();
   if (DEMO) showApp();
+  else if (session() && (location.hash.indexOf('access_token=') >= 0 ||
+    (location.hash.indexOf('state=gs.') >= 0 && location.hash.indexOf('error=') >= 0))) finishSheetsAuth();
   else if (location.hash.indexOf('id_token=') >= 0 || location.hash.indexOf('error=') >= 0) finishLogin();
   else if (session()) showApp();
   else logout();

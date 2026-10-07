@@ -107,6 +107,49 @@
     return 'merah';
   }
 
+  function shiftMonth(ym, delta) {
+    const [y, m] = ym.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  /**
+   * Bandingkan pengeluaran bulan `bulan` dengan `n` bulan sebelumnya (n = 1..3).
+   * Bulan sebelum transaksi pertama pengguna tidak ikut dihitung (ditandai adaData: false).
+   * Hasil: { bulan: [{ bulan, keluar, adaData, kategori: {nama: total} }...] (lama -> baru), dibanding (jumlah bulan yang dihitung),
+   *          rataSebelum, selisih (bulan ini - rata-rata), persen (selisih ÷ rata-rata, null kalau rata-rata 0),
+   *          kategori: [{ kategori, ini, rata, selisih }] urut dari yang terbesar }.
+   */
+  function compareMonths(txs, bulan, n) {
+    const months = [];
+    for (let i = n; i >= 0; i--) months.push(shiftMonth(bulan, -i));
+    const first = txs.reduce((m, t) => (t.tanggal && (!m || t.tanggal < m) ? t.tanggal : m), '');
+    const firstMonth = first ? monthOf(first) : bulan;
+    const data = months.map((b) => ({ bulan: b, keluar: 0, kategori: {}, adaData: b >= firstMonth }));
+    const idx = Object.fromEntries(months.map((b, i) => [b, i]));
+    txs.forEach((t) => {
+      if (t.jenis !== 'keluar') return;
+      const i = idx[monthOf(t.tanggal)];
+      if (i === undefined) return;
+      const v = Number(t.nominal) || 0;
+      data[i].keluar += v;
+      data[i].kategori[t.kategori] = (data[i].kategori[t.kategori] || 0) + v;
+    });
+    const sekarang = data[data.length - 1];
+    const sebelum = data.slice(0, -1).filter((d) => d.adaData);
+    const rataSebelum = sebelum.length ? sebelum.reduce((s, d) => s + d.keluar, 0) / sebelum.length : 0;
+    const names = new Set();
+    data.forEach((d) => Object.keys(d.kategori).forEach((k) => names.add(k)));
+    const kategori = Array.from(names).map((k) => {
+      const ini = sekarang.kategori[k] || 0;
+      const rata = sebelum.length ? sebelum.reduce((s, d) => s + (d.kategori[k] || 0), 0) / sebelum.length : 0;
+      return { kategori: k, ini, rata, selisih: ini - rata };
+    }).sort((a, b) => Math.max(b.ini, b.rata) - Math.max(a.ini, a.rata));
+    const selisih = sekarang.keluar - rataSebelum;
+    return { bulan: data, dibanding: sebelum.length, rataSebelum, selisih,
+      persen: sebelum.length && rataSebelum > 0 ? selisih / rataSebelum : null, kategori };
+  }
+
   // ---------- Merapikan transaksi & hasil AI ----------
 
   const KATEGORI_PINDAH = 'Pindah dana';
@@ -251,7 +294,7 @@
   }
 
   const api = { UTAMA_ID, KATEGORI_PINDAH, computeWallets, monthSummary, categoryReport, cashPosition, cashZone, CASH_LEVELS,
-    cleanTx, mapAiResult, parseDemo, parseAmount, sortTx, monthOf };
+    cleanTx, mapAiResult, compareMonths, shiftMonth, parseDemo, parseAmount, sortTx, monthOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.HBLogic = api;
 })(this);

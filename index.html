@@ -99,6 +99,9 @@
           <div class="cash-tip" id="r-cash-tip" hidden></div>
           <p class="cash-note">Persen uang bulan ini yang masih tersisa: saldo semua dompet ÷ (saldo awal bulan + pemasukan bulan ini).</p>
         </div>
+        <div class="section-head"><h2>Dibanding bulan sebelumnya</h2>
+          <div class="seg seg-sm" id="cmp-seg"><button data-n="1">1 bln</button><button data-n="2">2 bln</button><button data-n="3">3 bln</button></div></div>
+        <div class="cmp-card" id="r-compare"></div>
         <h2>Pengeluaran per kategori</h2>
         <div id="r-cats"></div>
         <h2>Unduh laporan bulan ini</h2>
@@ -119,8 +122,10 @@
         <h2>Data & cadangan</h2>
         <div class="list">
           <div class="list-item" id="s-data-info"></div>
-          <button class="list-item" id="btn-backup"><span>💾 Simpan cadangan <small>(file Excel)</small></span><small>›</small></button>
-          <button class="list-item" id="btn-restore"><span>♻️ Pulihkan dari cadangan</span><small>›</small></button>
+          <button class="list-item" id="btn-backup"><span>💾 Simpan cadangan ke file Excel</span><small>›</small></button>
+          <button class="list-item" id="btn-sheets-backup" hidden><span>🟩 Cadangkan ke Google Sheets</span><small>›</small></button>
+          <button class="list-item" id="btn-restore"><span>♻️ Pulihkan dari file Excel</span><small>›</small></button>
+          <button class="list-item" id="btn-sheets-restore" hidden><span>♻️ Pulihkan dari Google Sheets</span><small>›</small></button>
           <button class="list-item" id="btn-migrate" hidden><span>📥 Pindahkan data dari Google Sheets</span><small>›</small></button>
         </div>
         <input type="file" id="restore-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
@@ -129,6 +134,7 @@
           <div class="list-item"><span id="s-conn"></span></div>
           <div class="list-item" id="s-timing" hidden></div>
           <div class="list-item" id="s-account" hidden></div>
+          <button class="list-item" id="btn-tutorial"><span>🎓 Lihat tutorial lagi</span><small>›</small></button>
           <button class="list-item" id="btn-feedback" hidden><span>💬 Kirim masukan</span><small>›</small></button>
           <button class="list-item" id="btn-stats" hidden><span>📈 Statistik pemakaian <small>(pemilik)</small></span><small>›</small></button>
           <a class="list-item" href="privasi.html"><span>🔒 Kebijakan Privasi</span><small>›</small></a>
@@ -155,6 +161,18 @@
     </nav>
   </div>
 
+  <!-- Tutorial singkat -->
+  <div class="tutorial" id="tutorial" hidden role="dialog" aria-modal="true" aria-label="Tutorial">
+    <div class="tut-card">
+      <button class="tut-skip" id="tut-skip">Lewati</button>
+      <div class="tut-icon"></div>
+      <h3 class="tut-title"></h3>
+      <p class="tut-text"></p>
+      <div class="tut-dots"></div>
+      <div class="btn-row"><button class="btn" id="tut-back">Kembali</button><button class="btn primary" id="tut-next">Lanjut</button></div>
+    </div>
+  </div>
+
   <!-- Lembar bawah (modal) serbaguna -->
   <div class="sheet-backdrop" id="sheet-backdrop" hidden>
     <div class="sheet" role="dialog" aria-modal="true" id="sheet"></div>
@@ -165,6 +183,7 @@
   <script src="logic.js"></script>
   <script src="store.js"></script>
   <script src="export.js"></script>
+  <script src="gsheets.js"></script>
   <script src="recorder.js"></script>
   <script src="app.js"></script>
 </body>

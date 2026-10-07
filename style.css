@@ -387,3 +387,46 @@ a.list-item { color: inherit; text-decoration: none; }
 .stat-table th { color: var(--muted); font-weight: 600; font-size: 12px; }
 .fb-item { background: var(--card); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
 .fb-item small { color: var(--muted); display: block; margin-bottom: 4px; }
+
+/* ---------- Perbandingan bulan ---------- */
+.seg-sm { display: inline-grid; grid-template-columns: repeat(3, auto); margin-top: 14px; }
+.seg-sm button { padding: 5px 12px; font-size: 12px; }
+.cmp-card { background: var(--card); border-radius: 24px; padding: 14px; box-shadow: var(--shadow); display: grid; gap: 10px; }
+.cmp-verdict { margin: 0 4px; font-size: 14px; line-height: 1.5; }
+.cmp-note { margin: -4px 4px 0; font-size: 12px; color: var(--muted); }
+.cmp-chart { position: relative; display: flex; align-items: flex-end; gap: 10px; height: 190px; padding: 0 4px; }
+.cmp-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cmp-val { font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.cmp-col.cur .cmp-val { color: var(--text); }
+.cmp-track { flex: 1; width: 100%; max-width: 56px; display: flex; align-items: flex-end; }
+.cmp-track i { display: block; width: 100%; border-radius: 10px 10px 4px 4px; background: color-mix(in srgb, var(--brand) 35%, var(--field)); }
+.cmp-col.cur .cmp-track i { background: var(--brand); }
+.cmp-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.cmp-col.cur .cmp-label { color: var(--text); font-weight: 800; }
+.cmp-track { position: relative; }
+.cmp-avg { position: absolute; left: -6px; right: -6px; border-top: 2px dashed var(--text); opacity: .45; pointer-events: none; }
+.cmp-legend { margin: 0 4px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.cmp-legend i { width: 18px; border-top: 2px dashed var(--text); opacity: .45; }
+.cmp-table-wrap { overflow-x: auto; }
+.cmp-table { box-shadow: none; }
+.cmp-table td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- Tutorial ---------- */
+.tutorial { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px; background: rgba(20, 28, 25, .45); }
+.tut-card {
+  position: relative; width: 100%; max-width: 380px; background: var(--card); border-radius: 30px; padding: 30px 22px 20px;
+  text-align: center; box-shadow: var(--shadow-lg);
+  background-image: linear-gradient(180deg, transparent 0, var(--card) 170px), var(--hero);
+}
+.tut-skip { position: absolute; top: 14px; right: 14px; border: 0; background: rgba(255, 255, 255, .6); color: var(--text); font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 999px; }
+.tut-icon { font-size: 52px; line-height: 1; margin: 8px 0 14px; }
+.tut-title { margin: 0 0 10px; font-size: 21px; letter-spacing: -.02em; }
+.tut-text { margin: 0; font-size: 15px; line-height: 1.6; min-height: 120px; }
+.tut-dots { display: flex; justify-content: center; gap: 6px; margin-top: 16px; }
+.tut-dots i { width: 7px; height: 7px; border-radius: 999px; background: var(--line); transition: width .2s; }
+.tut-dots i.on { width: 20px; background: var(--brand); }
+.list-item a, #s-data-info a { color: var(--brand); font-weight: 700; }
+.seg-sm button { white-space: nowrap; }
+.cmp-col.nodata .cmp-label { opacity: .5; }
+.cmp-table td:first-child { white-space: normal; }
+.cmp-col.nodata .cmp-avg { display: none; }

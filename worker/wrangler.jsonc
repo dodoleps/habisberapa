@@ -1,0 +1,16 @@
+// Pengaturan Cloudflare Worker "habisberapa", dipakai saat Cloudflare memasang Worker dari GitHub (Workers Builds).
+// Variabel & secret (GOOGLE_CLIENT_ID, OWNER_EMAIL, ALLOWED_ORIGINS, GEMINI_API_KEY) tetap diatur di dasbor
+// dan TIDAK ditimpa (keep_vars). Panduan: PANDUAN-CLOUDFLARE.md Bagian F.
+{
+  "name": "habisberapa",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "keep_vars": true,
+  // Jalankan Worker di pusat data dekat wilayah Google Cloud di Amerika, karena Gemini menolak sebagian lokasi
+  // (mis. Hong Kong) yang kadang terpakai oleh pengguna dari Indonesia.
+  "placement": { "region": "gcp:us-central1" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "habisberapa", "database_id": "ISI_DATABASE_ID_D1" }
+  ],
+  "observability": { "enabled": true }
+}

@@ -10,7 +10,7 @@
   // (mis. Hong Kong) yang kadang terpakai oleh pengguna dari Indonesia.
   "placement": { "region": "gcp:us-central1" },
   "d1_databases": [
-    { "binding": "DB", "database_name": "habisberapa", "database_id": "ISI_DATABASE_ID_D1" }
+    { "binding": "DB", "database_name": "habisberapa", "database_id": "31157ff6-2461-43b2-8e04-b43420cca682" }
   ],
   "observability": { "enabled": true }
 }

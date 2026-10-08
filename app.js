@@ -902,6 +902,114 @@
     if (!META.tutorialSelesai) showTutorial();
   }
 
+  // ---------- Bagikan rekap bulanan (stiker story) ----------
+
+  const APP_NAME = (window.HB_CONFIG && window.HB_CONFIG.APP_NAME) || 'Habis Berapa';
+
+  function openShareRecap() {
+    const m = S.reportMonth;
+    const rows = L.categoryReport(S.transactions, m).rows;
+    if (!rows.length) { toast('Belum ada pengeluaran di ' + fmtMonth(m) + ' untuk dibagikan.'); return; }
+    const st = { chosen: new Set(rows.slice(0, 3).map((r) => r.kategori)), line: true, dark: false, photo: null, final: null, sticker: null, busy: 0 };
+    const keterangan = (kat) => S.transactions.filter((t) => t.jenis === 'keluar' && L.monthOf(t.tanggal) === m && t.kategori === kat)
+      .map((t) => t.keterangan || '');
+
+    openSheet('<h3>📸 Bagikan rekap ' + esc(fmtMonth(m)) + '</h3>' +
+      '<div class="sh-preview" id="sh-preview"><img id="sh-img" alt="Pratinjau kartu rekap"></div>' +
+      '<div class="field"><label>Kategori yang ditampilkan (maks. 5)</label><div class="sh-cats" id="sh-cats">' +
+      rows.map((r) => '<button type="button" class="sh-chip" data-cat="' + esc(r.kategori) + '">' + (ICON[r.kategori] || '💸') + ' ' +
+        esc(r.kategori) + ' <small>' + esc(rpShort(r.total)) + '</small></button>').join('') + '</div></div>' +
+      '<div class="sh-opts">' +
+      '<label class="sh-toggle"><input type="checkbox" id="sh-line" checked> Kalimat lucu</label>' +
+      '<div class="seg seg-sm" id="sh-ink" style="margin:0"><button type="button" data-dark="0" class="on">Teks putih</button><button type="button" data-dark="1">Teks gelap</button></div>' +
+      '</div>' +
+      '<div class="sh-photo"><button type="button" class="btn" id="sh-pick">📷 Pakai foto sendiri</button>' +
+      '<button type="button" class="btn" id="sh-nophoto" hidden>Hapus foto</button></div>' +
+      '<input type="file" id="sh-file" accept="image/*" hidden>' +
+      '<div class="btn-row"><button class="btn" id="sh-sticker">Simpan stiker transparan</button><button class="btn primary" id="sh-go">Bagikan</button></div>' +
+      '<p class="transcript" style="margin-top:10px">Tips: pilih "Simpan stiker transparan" untuk ditempel di foto langsung dari Instagram (fitur stiker → galeri).</p>', (el) => {
+      const img = el.querySelector('#sh-img');
+      const drawChips = () => el.querySelectorAll('.sh-chip').forEach((b) => b.classList.toggle('on', st.chosen.has(b.dataset.cat)));
+      const data = () => {
+        const items = rows.filter((r) => st.chosen.has(r.kategori)).slice(0, 5)
+          .map((r) => ({ nama: r.kategori, total: r.total, icon: ICON[r.kategori] || '💸' }));
+        return {
+          bulanLabel: fmtMonth(m), total: L.monthSummary(S.transactions, m).keluar, items, appName: APP_NAME,
+          line: st.line && items.length ? window.HBShare.funnyLine(items[0], keterangan(items[0].nama)) : '',
+        };
+      };
+      // Gambar disiapkan setiap kali pilihan berubah, supaya tombol Bagikan langsung membuka menu bagikan
+      // (iPhone hanya mengizinkan menu bagikan tepat setelah ketukan).
+      const redraw = async () => {
+        const my = ++st.busy;
+        const d = data(), opts = { dark: st.dark, photo: st.photo };
+        const fin = await window.HBShare.render(d, opts, 'final');
+        const stc = await window.HBShare.render(d, opts, 'sticker');
+        const [bf, bs] = await Promise.all([window.HBShare.toBlob(fin), window.HBShare.toBlob(stc)]);
+        if (my !== st.busy) return;
+        st.final = bf; st.sticker = bs;
+        if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+        img.dataset.url = URL.createObjectURL(st.photo ? bf : bs);
+        img.src = img.dataset.url;
+        el.querySelector('#sh-preview').classList.toggle('has-photo', !!st.photo);
+        el.querySelector('#sh-preview').classList.toggle('dark-ink', st.dark);
+      };
+      el.querySelector('#sh-cats').onclick = (e) => {
+        const b = e.target.closest('.sh-chip');
+        if (!b) return;
+        const k = b.dataset.cat;
+        if (st.chosen.has(k)) st.chosen.delete(k);
+        else if (st.chosen.size >= 5) { toast('Maksimal 5 kategori'); return; }
+        else st.chosen.add(k);
+        drawChips(); redraw();
+      };
+      el.querySelector('#sh-line').onchange = (e) => { st.line = e.target.checked; redraw(); };
+      el.querySelector('#sh-ink').onclick = (e) => {
+        const b = e.target.closest('[data-dark]');
+        if (!b) return;
+        st.dark = b.dataset.dark === '1';
+        el.querySelectorAll('#sh-ink button').forEach((x) => x.classList.toggle('on', x === b));
+        redraw();
+      };
+      el.querySelector('#sh-pick').onclick = () => el.querySelector('#sh-file').click();
+      el.querySelector('#sh-file').onchange = async (e) => {
+        const f = e.target.files[0];
+        e.target.value = '';
+        if (!f) return;
+        try { st.photo = await window.HBShare.loadPhoto(f); } catch (err) { toast(err.message); return; }
+        el.querySelector('#sh-pick').textContent = '📷 Ganti foto';
+        el.querySelector('#sh-nophoto').hidden = false;
+        redraw();
+      };
+      el.querySelector('#sh-nophoto').onclick = () => {
+        st.photo = null;
+        el.querySelector('#sh-pick').textContent = '📷 Pakai foto sendiri';
+        el.querySelector('#sh-nophoto').hidden = true;
+        redraw();
+      };
+      const name = (kind) => APP_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + kind + '-' + m + '.png';
+      el.querySelector('#sh-go').onclick = () => { if (st.final) shareImage(st.final, name('rekap'), 'Rekap ' + fmtMonth(m)); };
+      el.querySelector('#sh-sticker').onclick = () => { if (st.sticker) shareImage(st.sticker, name('stiker'), 'Stiker rekap ' + fmtMonth(m)); };
+      drawChips();
+      redraw();
+    });
+  }
+
+  /** Buka menu bagikan HP untuk gambar; kalau tidak didukung, unduh filenya. */
+  function shareImage(blob, filename, title) {
+    const file = new File([blob], filename, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title }).catch((e) => { if (e.name !== 'AbortError') toast('Gagal membagikan: ' + e.message); });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast('Gambar disimpan');
+  }
+
   // ---------- Perbandingan pengeluaran (Laporan) ----------
 
   function renderCompare() {
@@ -1315,6 +1423,7 @@
     $('btn-sheets-backup').onclick = () => withSheets('backup');
     $('btn-sheets-restore').onclick = () => withSheets('restore');
     $('btn-tutorial').onclick = showTutorial;
+    $('btn-share-recap').onclick = openShareRecap;
     $('cmp-seg').onclick = (e) => { const b = e.target.closest('[data-n]'); if (b) { S.compareN = Number(b.dataset.n); renderCompare(); } };
     $('btn-logout').onclick = async () => {
       if (await confirmBox('Keluar dari akun ini di HP ini?', 'Keluar')) logout();

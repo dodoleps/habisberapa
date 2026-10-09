@@ -55,79 +55,87 @@
   }
 
   /** Gambar stiker (tanpa latar) ke ctx. opts.dark = teks gelap untuk foto terang. */
+  // Ukuran stiker: K mengecilkan semua huruf & batang (1 = ukuran awal). Lebar blok dibuat ramping
+  // supaya foto pengguna lebih banyak terlihat.
+  const K = 0.7, MARGIN = 150;
+
   function drawSticker(ctx, d, opts) {
     const ink = opts.dark ? '#14201c' : '#ffffff';
     const soft = opts.dark ? 'rgba(20,32,28,.62)' : 'rgba(255,255,255,.78)';
     const track = opts.dark ? 'rgba(20,32,28,.16)' : 'rgba(255,255,255,.28)';
     const fill = opts.dark ? 'rgba(20,32,28,.82)' : 'rgba(255,255,255,.92)';
+    const px = (n) => Math.round(n * K);
+    const font = (w, size) => w + ' ' + px(size) + 'px ' + FONT;
     ctx.save();
     ctx.shadowColor = opts.dark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.35)';
-    ctx.shadowBlur = 18;
+    ctx.shadowBlur = px(18);
     ctx.textBaseline = 'alphabetic';
-    const X = 96, R = W - 96;
+    const X = MARGIN, R = W - MARGIN;
     const items = d.items.slice(0, 5);
     // Tinggi blok dihitung supaya stiker selalu menempel di bagian bawah.
-    const rowH = 132;
-    const blockH = 120 + 190 + (d.line ? 110 : 20) + items.length * rowH + 150;
-    let y = H - 110 - blockH;
+    const rowH = px(132);
+    const blockH = px(120) + px(190) + (d.line ? px(110) : px(20)) + items.length * rowH + px(150);
+    let y = H - 140 - blockH;
 
     ctx.fillStyle = soft;
-    ctx.font = '700 40px ' + FONT;
-    ctx.letterSpacing = '6px';
-    ctx.fillText(d.bulanLabel.toUpperCase(), X, y + 40);
+    ctx.font = font(700, 40);
+    ctx.letterSpacing = px(6) + 'px';
+    ctx.fillText(d.bulanLabel.toUpperCase(), X, y + px(40));
     ctx.letterSpacing = '0px';
-    y += 120;
+    y += px(120);
     ctx.fillStyle = soft;
-    ctx.font = '600 46px ' + FONT;
-    ctx.fillText(d.items.length ? 'Habis' : 'Total pengeluaran', X, y - 10);
+    ctx.font = font(600, 46);
+    ctx.fillText(d.items.length ? 'Habis' : 'Total pengeluaran', X, y - px(10));
     ctx.fillStyle = ink;
-    ctx.font = '800 150px ' + FONT;
-    ctx.fillText(short(d.total), X, y + 150);
-    y += 190;
+    ctx.font = font(800, 150);
+    ctx.fillText(short(d.total), X, y + px(150));
+    y += px(190);
 
     if (d.line) {
       ctx.fillStyle = ink;
-      ctx.font = '600 44px ' + FONT;
-      ctx.fillText(d.line, X, y + 40, R - X);
-      y += 110;
-    } else y += 20;
+      ctx.font = font(600, 44);
+      ctx.fillText(d.line, X, y + px(40), R - X);
+      y += px(110);
+    } else y += px(20);
 
     const max = Math.max(1, ...items.map((i) => i.total));
+    const barH = px(30);
     items.forEach((it) => {
-      ctx.shadowBlur = 18;
+      ctx.shadowBlur = px(18);
       ctx.fillStyle = ink;
-      ctx.font = '700 46px ' + FONT;
-      ctx.fillText((it.icon ? it.icon + '  ' : '') + it.nama, X, y + 46, R - X - 260);
+      ctx.font = font(700, 46);
+      ctx.fillText((it.icon ? it.icon + '  ' : '') + it.nama, X, y + px(46), R - X - px(260));
       ctx.textAlign = 'right';
-      ctx.fillText(short(it.total), R, y + 46);
+      ctx.fillText(short(it.total), R, y + px(46));
       ctx.textAlign = 'left';
       ctx.shadowBlur = 0;
-      roundRect(ctx, X, y + 70, R - X, 30, 15);
+      roundRect(ctx, X, y + px(70), R - X, barH, barH / 2);
       ctx.fillStyle = track;
       ctx.fill();
-      roundRect(ctx, X, y + 70, Math.max(30, (R - X) * (it.total / max)), 30, 15);
+      roundRect(ctx, X, y + px(70), Math.max(barH, (R - X) * (it.total / max)), barH, barH / 2);
       ctx.fillStyle = fill;
       ctx.fill();
       y += rowH;
     });
 
-    ctx.shadowBlur = 18;
-    y += 40;
+    ctx.shadowBlur = px(18);
+    y += px(40);
+    const r = px(34);
     ctx.beginPath();
-    ctx.arc(X + 34, y + 40, 34, 0, Math.PI * 2);
+    ctx.arc(X + r, y + px(40), r, 0, Math.PI * 2);
     ctx.fillStyle = fill;
     ctx.fill();
     ctx.fillStyle = opts.dark ? '#ffffff' : '#2f8a75';
-    ctx.font = '700 36px ' + FONT;
+    ctx.font = font(700, 36);
     ctx.textAlign = 'center';
-    ctx.fillText('🎙', X + 34, y + 54);
+    ctx.fillText('🎙', X + r, y + px(54));
     ctx.textAlign = 'left';
     ctx.fillStyle = ink;
-    ctx.font = '800 42px ' + FONT;
-    ctx.fillText(d.appName, X + 90, y + 38);
+    ctx.font = font(800, 42);
+    ctx.fillText(d.appName, X + px(90), y + px(38));
     ctx.fillStyle = soft;
-    ctx.font = '600 32px ' + FONT;
-    ctx.fillText('catat keuangan cukup ngomong', X + 90, y + 80);
+    ctx.font = font(600, 32);
+    ctx.fillText('catat keuangan cukup ngomong', X + px(90), y + px(80));
     ctx.restore();
   }
 

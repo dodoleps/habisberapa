@@ -161,6 +161,18 @@
       db = { versi: 1, wallets, categories, transactions, meta: db.meta || {} };
       return { transaksi: transactions.length, dompet: wallets.length };
     },
+    /**
+     * Mulai pencatatan baru: semua transaksi dihapus, dompet & kategori tetap.
+     * mode 'bawa' = sisa uang tiap dompet dicatat sebagai "Saldo awal"; mode 'nol' = semua saldo jadi 0.
+     */
+    resetBook: (req) => {
+      const tanggal = today();
+      const opening = req.mode === 'bawa' ? L.openingBalances(db.wallets, db.transactions, tanggal) : [];
+      const dihapus = db.transactions.length;
+      db.transactions = [];
+      add(opening);
+      return { dihapus, dibawa: opening.reduce((s, t) => s + t.nominal, 0) };
+    },
     getMeta: (req) => (db.meta || {})[req.key],
     setMeta: (req) => { db.meta = db.meta || {}; db.meta[req.key] = req.value; return req.value; },
   };
@@ -193,6 +205,13 @@
     },
     /** Salinan lengkap untuk cadangan. */
     snapshot() { return JSON.parse(JSON.stringify(db)); },
+    /** Sidik jari isi buku (dompet, kategori, transaksi) untuk mengecek apakah ada perubahan sejak cadangan. */
+    signature() {
+      const s = JSON.stringify([db.wallets, db.categories, db.transactions]);
+      let h = 0x811c9dc5;
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+      return s.length + ':' + h.toString(16);
+    },
     async reset() { db = fresh(); await persist(); },
   };
 })(this);

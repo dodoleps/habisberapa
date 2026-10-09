@@ -454,3 +454,6 @@ a.list-item { color: inherit; text-decoration: none; }
 .sh-toggle input { width: 18px; height: 18px; accent-color: var(--brand); }
 .sh-photo { display: flex; gap: 8px; }
 .sh-photo .btn { padding: 10px; }
+.congrats { text-align: center; }
+.congrats-emoji { font-size: 56px; line-height: 1; margin: 4px 0 8px; }
+.congrats h3 { margin-bottom: 8px; }

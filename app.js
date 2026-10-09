@@ -105,7 +105,7 @@
   const walletName = (id) => (S.wallets.find((w) => w.id === id) || { nama: '(dompet terhapus)' }).nama;
   const catsOf = (jenis) => S.categories.filter((c) => c.jenis === jenis);
   const ICON = { 'Makan & Minum': '🍜', Transportasi: '🛵', Belanja: '🛍️', Tagihan: '🧾', Kesehatan: '💊',
-    Hiburan: '🎬', Keluarga: '👨‍👩‍👧', Gaji: '💼', Bonus: '🎁', 'Pindah dana': '🔁' };
+    Hiburan: '🎬', Keluarga: '👨‍👩‍👧', Gaji: '💼', Bonus: '🎁', 'Pindah dana': '🔁', 'Saldo awal': '🏁' };
 
   /** Warna pastel tiap dompet: tetap sama selama dompet ada (berdasarkan urutan dibuat). */
   const WALLET_COLORS = 8;   // warna otomatis bergilir di 8 warna pertama
@@ -316,6 +316,7 @@
     const m = S.reportMonth;
     $('r-month').textContent = fmtMonth(m);
     $('r-summary').innerHTML = statsHtml(L.monthSummary(S.transactions, m));
+    $('btn-share-hemat').hidden = !(m < thisMonth() && L.monthAchievement(S.transactions, m));
     renderCash();
     renderCompare();
     const rep = L.categoryReport(S.transactions, m);
@@ -900,6 +901,44 @@
     await refresh();
     if (!DEMO && LEGACY_SERVER) offerMigrationOnce();
     if (!META.tutorialSelesai) showTutorial();
+    else congratulateOnce();
+  }
+
+  // ---------- Ucapan selamat & stiker pencapaian hemat ----------
+
+  /** Sekali tiap ganti bulan: kalau bulan lalu pemasukan masih bersisa, beri ucapan selamat. */
+  async function congratulateOnce() {
+    const lalu = L.shiftMonth(thisMonth(), -1);
+    if (META.ucapanBulan === lalu) return;
+    META.ucapanBulan = lalu;
+    await api('setMeta', { key: 'ucapanBulan', value: lalu });
+    const a = L.monthAchievement(S.transactions, lalu);
+    if (!a) return;
+    openSheet('<div class="congrats"><div class="congrats-emoji">🎉</div><h3>Selamat, kamu berhasil hemat!</h3>' +
+      '<p>Di ' + esc(fmtMonth(lalu)) + ' pemasukanmu masih sisa <b>' + rp(a.sisa) + '</b> (' + Math.round(a.persen * 100) +
+      '% dari ' + rp(a.masuk) + ').</p><p class="transcript">' + esc(window.HBShare.praiseLine(a.persen)) + '</p></div>' +
+      '<div class="btn-row"><button class="btn" id="cg-close">Tutup</button><button class="btn primary" id="cg-share">📸 Bagikan ke story</button></div>', (el) => {
+      el.querySelector('#cg-close').onclick = closeSheet;
+      el.querySelector('#cg-share').onclick = () => openShareAchievement(lalu);
+    });
+  }
+
+  function openShareAchievement(m) {
+    const a = L.monthAchievement(S.transactions, m);
+    if (!a) { toast('Belum ada sisa pemasukan di ' + fmtMonth(m) + '.'); return; }
+    const st = { hide: false, dark: false, photo: null, final: null, sticker: null, busy: 0 };
+    openSheet('<h3>🏆 Pencapaian ' + esc(fmtMonth(m)) + '</h3>' +
+      '<div class="sh-preview" id="sh-preview"><img id="sh-img" alt="Pratinjau stiker pencapaian"></div>' +
+      '<div class="sh-opts">' +
+      '<label class="sh-toggle"><input type="checkbox" id="sh-hide"> Sembunyikan nominal</label>' +
+      '<div class="seg seg-sm" id="sh-ink" style="margin:0"><button type="button" data-dark="0" class="on">Teks putih</button><button type="button" data-dark="1">Teks gelap</button></div>' +
+      '</div>' + sharePhotoAndButtons(), (el) => {
+      const data = () => ({ bulanLabel: fmtMonth(m), sisa: a.sisa, persen: a.persen, appName: APP_NAME });
+      const redraw = shareRedraw(el, st, () => [data(), { kind: 'hemat', dark: st.dark, photo: st.photo, hideAmount: st.hide }]);
+      el.querySelector('#sh-hide').onchange = (e) => { st.hide = e.target.checked; redraw(); };
+      bindShareControls(el, st, redraw, 'hemat', m, 'Pencapaian hemat ' + fmtMonth(m));
+      redraw();
+    });
   }
 
   // ---------- Bagikan rekap bulanan (stiker story) ----------
@@ -922,13 +961,7 @@
       '<div class="sh-opts">' +
       '<label class="sh-toggle"><input type="checkbox" id="sh-line" checked> Kalimat lucu</label>' +
       '<div class="seg seg-sm" id="sh-ink" style="margin:0"><button type="button" data-dark="0" class="on">Teks putih</button><button type="button" data-dark="1">Teks gelap</button></div>' +
-      '</div>' +
-      '<div class="sh-photo"><button type="button" class="btn" id="sh-pick">📷 Pakai foto sendiri</button>' +
-      '<button type="button" class="btn" id="sh-nophoto" hidden>Hapus foto</button></div>' +
-      '<input type="file" id="sh-file" accept="image/*" hidden>' +
-      '<div class="btn-row"><button class="btn" id="sh-sticker">Simpan stiker transparan</button><button class="btn primary" id="sh-go">Bagikan</button></div>' +
-      '<p class="transcript" style="margin-top:10px">Tips: pilih "Simpan stiker transparan" untuk ditempel di foto langsung dari Instagram (fitur stiker → galeri).</p>', (el) => {
-      const img = el.querySelector('#sh-img');
+      '</div>' + sharePhotoAndButtons(), (el) => {
       const drawChips = () => el.querySelectorAll('.sh-chip').forEach((b) => b.classList.toggle('on', st.chosen.has(b.dataset.cat)));
       const data = () => {
         const items = rows.filter((r) => st.chosen.has(r.kategori)).slice(0, 5)
@@ -938,22 +971,7 @@
           line: st.line && items.length ? window.HBShare.funnyLine(items[0], keterangan(items[0].nama)) : '',
         };
       };
-      // Gambar disiapkan setiap kali pilihan berubah, supaya tombol Bagikan langsung membuka menu bagikan
-      // (iPhone hanya mengizinkan menu bagikan tepat setelah ketukan).
-      const redraw = async () => {
-        const my = ++st.busy;
-        const d = data(), opts = { dark: st.dark, photo: st.photo };
-        const fin = await window.HBShare.render(d, opts, 'final');
-        const stc = await window.HBShare.render(d, opts, 'sticker');
-        const [bf, bs] = await Promise.all([window.HBShare.toBlob(fin), window.HBShare.toBlob(stc)]);
-        if (my !== st.busy) return;
-        st.final = bf; st.sticker = bs;
-        if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
-        img.dataset.url = URL.createObjectURL(st.photo ? bf : bs);
-        img.src = img.dataset.url;
-        el.querySelector('#sh-preview').classList.toggle('has-photo', !!st.photo);
-        el.querySelector('#sh-preview').classList.toggle('dark-ink', st.dark);
-      };
+      const redraw = shareRedraw(el, st, () => [data(), { dark: st.dark, photo: st.photo }]);
       el.querySelector('#sh-cats').onclick = (e) => {
         const b = e.target.closest('.sh-chip');
         if (!b) return;
@@ -964,35 +982,71 @@
         drawChips(); redraw();
       };
       el.querySelector('#sh-line').onchange = (e) => { st.line = e.target.checked; redraw(); };
-      el.querySelector('#sh-ink').onclick = (e) => {
-        const b = e.target.closest('[data-dark]');
-        if (!b) return;
-        st.dark = b.dataset.dark === '1';
-        el.querySelectorAll('#sh-ink button').forEach((x) => x.classList.toggle('on', x === b));
-        redraw();
-      };
-      el.querySelector('#sh-pick').onclick = () => el.querySelector('#sh-file').click();
-      el.querySelector('#sh-file').onchange = async (e) => {
-        const f = e.target.files[0];
-        e.target.value = '';
-        if (!f) return;
-        try { st.photo = await window.HBShare.loadPhoto(f); } catch (err) { toast(err.message); return; }
-        el.querySelector('#sh-pick').textContent = '📷 Ganti foto';
-        el.querySelector('#sh-nophoto').hidden = false;
-        redraw();
-      };
-      el.querySelector('#sh-nophoto').onclick = () => {
-        st.photo = null;
-        el.querySelector('#sh-pick').textContent = '📷 Pakai foto sendiri';
-        el.querySelector('#sh-nophoto').hidden = true;
-        redraw();
-      };
-      const name = (kind) => APP_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + kind + '-' + m + '.png';
-      el.querySelector('#sh-go').onclick = () => { if (st.final) shareImage(st.final, name('rekap'), 'Rekap ' + fmtMonth(m)); };
-      el.querySelector('#sh-sticker').onclick = () => { if (st.sticker) shareImage(st.sticker, name('stiker'), 'Stiker rekap ' + fmtMonth(m)); };
+      bindShareControls(el, st, redraw, 'rekap', m, 'Rekap ' + fmtMonth(m));
       drawChips();
       redraw();
     });
+  }
+
+  /** Bagian bawah lembar bagikan: pilih foto + tombol Simpan stiker / Bagikan. */
+  function sharePhotoAndButtons() {
+    return '<div class="sh-photo"><button type="button" class="btn" id="sh-pick">📷 Pakai foto sendiri</button>' +
+      '<button type="button" class="btn" id="sh-nophoto" hidden>Hapus foto</button></div>' +
+      '<input type="file" id="sh-file" accept="image/*" hidden>' +
+      '<div class="btn-row"><button class="btn" id="sh-sticker">Simpan stiker transparan</button><button class="btn primary" id="sh-go">Bagikan</button></div>' +
+      '<p class="transcript" style="margin-top:10px">Tips: pilih "Simpan stiker transparan" untuk ditempel di foto langsung dari Instagram (fitur stiker → galeri).</p>';
+  }
+
+  /**
+   * Gambar disiapkan setiap kali pilihan berubah, supaya tombol Bagikan langsung membuka menu bagikan
+   * (iPhone hanya mengizinkan menu bagikan tepat setelah ketukan). args() -> [data, opts].
+   */
+  function shareRedraw(el, st, args) {
+    const img = el.querySelector('#sh-img');
+    return async () => {
+      const my = ++st.busy;
+      const [d, opts] = args();
+      const fin = await window.HBShare.render(d, opts, 'final');
+      const stc = await window.HBShare.render(d, opts, 'sticker');
+      const [bf, bs] = await Promise.all([window.HBShare.toBlob(fin), window.HBShare.toBlob(stc)]);
+      if (my !== st.busy) return;
+      st.final = bf; st.sticker = bs;
+      if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+      img.dataset.url = URL.createObjectURL(st.photo ? bf : bs);
+      img.src = img.dataset.url;
+      el.querySelector('#sh-preview').classList.toggle('has-photo', !!st.photo);
+      el.querySelector('#sh-preview').classList.toggle('dark-ink', st.dark);
+    };
+  }
+
+  /** Pasang tombol teks putih/gelap, foto, dan bagikan pada lembar bagikan. */
+  function bindShareControls(el, st, redraw, kind, m, title) {
+    el.querySelector('#sh-ink').onclick = (e) => {
+      const b = e.target.closest('[data-dark]');
+      if (!b) return;
+      st.dark = b.dataset.dark === '1';
+      el.querySelectorAll('#sh-ink button').forEach((x) => x.classList.toggle('on', x === b));
+      redraw();
+    };
+    el.querySelector('#sh-pick').onclick = () => el.querySelector('#sh-file').click();
+    el.querySelector('#sh-file').onchange = async (e) => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      try { st.photo = await window.HBShare.loadPhoto(f); } catch (err) { toast(err.message); return; }
+      el.querySelector('#sh-pick').textContent = '📷 Ganti foto';
+      el.querySelector('#sh-nophoto').hidden = false;
+      redraw();
+    };
+    el.querySelector('#sh-nophoto').onclick = () => {
+      st.photo = null;
+      el.querySelector('#sh-pick').textContent = '📷 Pakai foto sendiri';
+      el.querySelector('#sh-nophoto').hidden = true;
+      redraw();
+    };
+    const name = (suffix) => APP_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + suffix + '-' + m + '.png';
+    el.querySelector('#sh-go').onclick = () => { if (st.final) shareImage(st.final, name(kind), title); };
+    el.querySelector('#sh-sticker').onclick = () => { if (st.sticker) shareImage(st.sticker, name('stiker-' + kind), 'Stiker ' + title.toLowerCase()); };
   }
 
   /** Buka menu bagikan HP untuk gambar; kalau tidak didukung, unduh filenya. */
@@ -1172,6 +1226,7 @@
     await api('setMeta', { key: 'lastBackup', value: META.lastBackup });
     await api('setMeta', { key: 'lastSheetsBackup', value: META.lastBackup });
     META.lastSheetsBackup = META.lastBackup;
+    await markBackedUp();
     render();
     openSheet('<h3>Tersimpan di Google Sheets ✅</h3><p>' + window.HBStore.snapshot().transactions.length + ' transaksi sudah dicadangkan ke Google Drive Anda.</p>' +
       '<p class="transcript">Cadangan berikutnya akan memperbarui spreadsheet yang sama.</p>' +
@@ -1219,6 +1274,14 @@
     META.tutorialSelesai = await api('getMeta', { key: 'tutorialSelesai' });
     META.sheetsId = await api('getMeta', { key: 'sheetsId' });
     META.lastSheetsBackup = await api('getMeta', { key: 'lastSheetsBackup' });
+    META.backupSig = await api('getMeta', { key: 'backupSig' });
+    META.ucapanBulan = await api('getMeta', { key: 'ucapanBulan' });
+  }
+
+  /** Catat sidik jari data yang baru saja dicadangkan (syarat tombol "Mulai pencatatan baru"). */
+  async function markBackedUp() {
+    META.backupSig = window.HBStore.signature();
+    await api('setMeta', { key: 'backupSig', value: META.backupSig });
   }
 
   function daysSince(iso) {
@@ -1247,13 +1310,55 @@
       '</small></span>';
     $('btn-sheets-backup').hidden = DEMO;
     $('btn-sheets-restore').hidden = DEMO;
+    $('btn-reset').hidden = !META.backupSig;
+  }
+
+  /** Mulai pencatatan baru. Hanya boleh kalau data sekarang sudah tersimpan di cadangan terakhir. */
+  function startFresh() {
+    if (META.backupSig !== window.HBStore.signature()) {
+      openSheet('<h3>Simpan cadangan dulu ya</h3><p>Ada catatan baru atau perubahan sejak cadangan terakhir. ' +
+        'Supaya tidak ada yang hilang, simpan cadangan dulu, lalu buka menu ini lagi.</p>' +
+        '<div class="btn-row"><button class="btn" id="rs-close">Batal</button><button class="btn primary" id="rs-backup">Simpan cadangan</button></div>', (el) => {
+        el.querySelector('#rs-close').onclick = closeSheet;
+        el.querySelector('#rs-backup').onclick = () => { closeSheet(); chooseBackup(); };
+      });
+      return;
+    }
+    const cw = L.computeWallets(S.wallets, S.transactions);
+    const sisa = L.openingBalances(S.wallets, S.transactions, todayStr()).reduce((s, t) => s + t.nominal, 0);
+    const minus = cw.some((w) => w.saldo < 0);
+    openSheet('<h3>🧹 Mulai pencatatan baru</h3><p>Semua ' + S.transactions.length + ' transaksi di HP ini akan dihapus. ' +
+      'Dompet dan kategori tetap ada. Data lama aman di cadangan terakhir (' + esc(fmtDateTime(META.lastBackup)) +
+      ') dan bisa dikembalikan lewat menu Pulihkan.</p><div class="list">' +
+      '<button class="list-item" id="rs-bawa"><span>💼 Bawa sisa saldo<br><small>Sisa uang tiap dompet (total ' + rp(sisa) +
+      ') dicatat sebagai "Saldo awal"' + (minus ? '; saldo minus jadi Rp0' : '') + '</small></span><small>›</small></button>' +
+      '<button class="list-item" id="rs-nol"><span>0️⃣ Mulai dari nol<br><small>Semua saldo dompet jadi Rp0</small></span><small>›</small></button></div>' +
+      '<div class="btn-row"><button class="btn" id="rs-close">Batal</button></div>', (el) => {
+      el.querySelector('#rs-close').onclick = closeSheet;
+      el.querySelector('#rs-bawa').onclick = () => confirmFresh('bawa');
+      el.querySelector('#rs-nol').onclick = () => confirmFresh('nol');
+    });
+  }
+
+  async function confirmFresh(mode) {
+    const msg = 'Yakin? ' + S.transactions.length + ' transaksi akan dihapus dari HP ini' +
+      (mode === 'bawa' ? ' dan sisa saldo dibawa sebagai saldo awal.' : ' dan semua saldo jadi Rp0.');
+    if (!(await confirmBox(msg, 'Ya, mulai baru'))) return;
+    try {
+      const r = await api('resetBook', { mode });
+      S.newIds.clear(); S.transkrip = '';
+      await refresh();
+      toast(r.dihapus + ' transaksi dihapus. Pencatatan baru dimulai' + (r.dibawa ? ' dengan saldo awal ' + rp(r.dibawa) : '') + '.', 5000);
+    } catch (e) {
+      toast(e.message, 6000);
+    }
   }
 
   /**
    * Tawarkan file ke pengguna. Dibuat dua langkah (siapkan, lalu ketuk "Simpan / Bagikan") karena
    * iPhone hanya mengizinkan menu bagikan langsung dari ketukan pengguna.
    */
-  function offerFile(blob, filename, title) {
+  function offerFile(blob, filename, title, onSaved) {
     const file = new File([blob], filename, { type: blob.type });
     openSheet('<h3>' + esc(title) + '</h3><p>' + esc(filename) + ' · ' + Math.max(1, Math.round(blob.size / 1024)) + ' KB</p>' +
       '<p class="transcript">Di iPhone pilih "Simpan ke File" atau kirim lewat WhatsApp/email.</p>' +
@@ -1264,6 +1369,7 @@
           try {
             await navigator.share({ files: [file], title });
             closeSheet();
+            if (onSaved) await onSaved();
             return true;
           } catch (e) {
             if (e.name === 'AbortError') return false;
@@ -1275,6 +1381,7 @@
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
         closeSheet();
+        if (onSaved) await onSaved();
         return true;
       };
     });
@@ -1290,7 +1397,13 @@
       const me = session();
       const blob = await withBusy('Menyiapkan cadangan…', () => window.HBExport.backupXlsx(window.HBStore.snapshot(),
         { dibuat: new Date().toISOString(), akun: me ? me.email : '' }));
-      offerFile(blob, 'habisberapa-cadangan-' + fileStamp() + '.xlsx', 'Cadangan siap');
+      const sig = window.HBStore.signature();
+      // Tombol "Mulai pencatatan baru" baru boleh dipakai setelah file benar-benar disimpan/dibagikan.
+      offerFile(blob, 'habisberapa-cadangan-' + fileStamp() + '.xlsx', 'Cadangan siap', async () => {
+        META.backupSig = sig;
+        await api('setMeta', { key: 'backupSig', value: sig });
+        render();
+      });
       // Dianggap sudah dicadangkan begitu file dibuat.
       META.lastBackup = new Date().toISOString();
       await api('setMeta', { key: 'lastBackup', value: META.lastBackup });
@@ -1424,6 +1537,8 @@
     $('btn-sheets-restore').onclick = () => withSheets('restore');
     $('btn-tutorial').onclick = showTutorial;
     $('btn-share-recap').onclick = openShareRecap;
+    $('btn-share-hemat').onclick = () => openShareAchievement(S.reportMonth);
+    $('btn-reset').onclick = startFresh;
     $('cmp-seg').onclick = (e) => { const b = e.target.closest('[data-n]'); if (b) { S.compareN = Number(b.dataset.n); renderCompare(); } };
     $('btn-logout').onclick = async () => {
       if (await confirmBox('Keluar dari akun ini di HP ini?', 'Keluar')) logout();

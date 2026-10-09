@@ -1,6 +1,8 @@
 /* Perhitungan murni (tanpa tampilan): saldo dompet, ringkasan, laporan, dan parser mode demo. */
 (function (root) {
   const UTAMA_ID = 'utama';
+  const KATEGORI_PINDAH = 'Pindah dana';
+  const KATEGORI_SALDO_AWAL = 'Saldo awal'; // sisa uang yang dibawa saat mulai pencatatan baru
   const MENIPIS = 0.2; // dompet "mendekati habis" jika sisa <= 20% dari jumlah setelah pengisian terakhir
 
   function sortTx(txs) {
@@ -38,15 +40,40 @@
 
   function monthOf(tanggal) { return String(tanggal).slice(0, 7); }
 
-  /** Total masuk & keluar dalam satu bulan (pindah antar dompet tidak dihitung). */
+  /** Total masuk & keluar dalam satu bulan (pindah antar dompet dan saldo awal tidak dihitung). */
   function monthSummary(txs, bulan) {
     let masuk = 0, keluar = 0;
     txs.forEach((t) => {
       if (monthOf(t.tanggal) !== bulan) return;
-      if (t.jenis === 'masuk') masuk += Number(t.nominal);
+      if (t.jenis === 'masuk' && t.kategori !== KATEGORI_SALDO_AWAL) masuk += Number(t.nominal);
       if (t.jenis === 'keluar') keluar += Number(t.nominal);
     });
     return { masuk, keluar, selisih: masuk - keluar };
+  }
+
+  /**
+   * Pencapaian hemat satu bulan: sisa = pemasukan − pengeluaran bulan itu.
+   * null kalau bulan itu tidak ada pemasukan atau tidak ada sisa.
+   */
+  function monthAchievement(txs, bulan) {
+    const s = monthSummary(txs, bulan);
+    if (!(s.masuk > 0) || !(s.selisih > 0)) return null;
+    return { bulan, masuk: s.masuk, keluar: s.keluar, sisa: s.selisih, persen: s.selisih / s.masuk };
+  }
+
+  /**
+   * Transaksi "Saldo awal" untuk mulai pencatatan baru sambil membawa sisa uang tiap dompet.
+   * Sisa di dompet yang sudah dihapus masuk ke dompet utama; saldo minus tidak dibawa.
+   */
+  function openingBalances(wallets, txs, tanggal) {
+    const sisa = {};
+    computeWallets(wallets, txs).forEach((w) => {
+      if (!(w.saldo > 0)) return;
+      const id = w.arsip ? UTAMA_ID : w.id;
+      sisa[id] = (sisa[id] || 0) + w.saldo;
+    });
+    return Object.keys(sisa).map((id) => ({ tanggal, jenis: 'masuk', nominal: sisa[id], kategori: KATEGORI_SALDO_AWAL,
+      dompet_id: id, dompet_tujuan_id: '', keterangan: 'Sisa saldo saat mulai pencatatan baru' }));
   }
 
   /** Pengeluaran per kategori dalam satu bulan, urut terbesar. */
@@ -151,8 +178,6 @@
   }
 
   // ---------- Merapikan transaksi & hasil AI ----------
-
-  const KATEGORI_PINDAH = 'Pindah dana';
 
   /** Rapikan & periksa satu transaksi. Melempar Error kalau tidak valid. */
   function cleanTx(tx, today) {
@@ -293,7 +318,7 @@
     return out;
   }
 
-  const api = { UTAMA_ID, KATEGORI_PINDAH, computeWallets, monthSummary, categoryReport, cashPosition, cashZone, CASH_LEVELS,
+  const api = { UTAMA_ID, KATEGORI_PINDAH, KATEGORI_SALDO_AWAL, computeWallets, monthSummary, monthAchievement, openingBalances, categoryReport, cashPosition, cashZone, CASH_LEVELS,
     cleanTx, mapAiResult, compareMonths, shiftMonth, parseDemo, parseAmount, sortTx, monthOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.HBLogic = api;

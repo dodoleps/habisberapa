@@ -1,5 +1,5 @@
 /*
- * Kartu rekap bulanan untuk dibagikan ke story (ala stiker Strava).
+ * Kartu rekap bulanan & stiker pencapaian hemat untuk dibagikan ke story (ala stiker Strava).
  * Digambar di HP dengan <canvas> (1080×1920), tanpa server.
  *  - stiker transparan: hanya teks & grafik batang tembus pandang
  *  - gambar jadi: foto pengguna (atau latar pastel) + stiker
@@ -119,23 +119,106 @@
     });
 
     ctx.shadowBlur = px(18);
-    y += px(40);
+    drawFooter(ctx, d.appName, opts, X, y + px(40));
+    ctx.restore();
+  }
+
+  /** Logo kecil + nama aplikasi di bagian bawah stiker. */
+  function drawFooter(ctx, appName, opts, X, y) {
+    const c = colors(opts);
+    const px = (n) => Math.round(n * K);
+    const font = (w, size) => w + ' ' + px(size) + 'px ' + FONT;
     const r = px(34);
     ctx.beginPath();
     ctx.arc(X + r, y + px(40), r, 0, Math.PI * 2);
-    ctx.fillStyle = fill;
+    ctx.fillStyle = c.fill;
     ctx.fill();
     ctx.fillStyle = opts.dark ? '#ffffff' : '#2f8a75';
     ctx.font = font(700, 36);
     ctx.textAlign = 'center';
     ctx.fillText('🎙', X + r, y + px(54));
     ctx.textAlign = 'left';
-    ctx.fillStyle = ink;
+    ctx.fillStyle = c.ink;
     ctx.font = font(800, 42);
-    ctx.fillText(d.appName, X + px(90), y + px(38));
-    ctx.fillStyle = soft;
+    ctx.fillText(appName, X + px(90), y + px(38));
+    ctx.fillStyle = c.soft;
     ctx.font = font(600, 32);
     ctx.fillText('catat keuangan cukup ngomong', X + px(90), y + px(80));
+  }
+
+  function colors(opts) {
+    return {
+      ink: opts.dark ? '#14201c' : '#ffffff',
+      soft: opts.dark ? 'rgba(20,32,28,.62)' : 'rgba(255,255,255,.78)',
+      track: opts.dark ? 'rgba(20,32,28,.16)' : 'rgba(255,255,255,.28)',
+      fill: opts.dark ? 'rgba(20,32,28,.82)' : 'rgba(255,255,255,.92)',
+    };
+  }
+
+  /** Kalimat apresiasi sesuai persen pemasukan yang tersisa. */
+  function praiseLine(persen) {
+    if (persen >= 0.5) return '👑 Sultan hemat! Separuh pemasukan masih utuh.';
+    if (persen >= 0.25) return '💪 Dompet tebal, hati tenang.';
+    if (persen >= 0.1) return '🌱 Hemat level aman. Pertahankan!';
+    return '😄 Tipis-tipis, yang penting masih sisa.';
+  }
+
+  function pct(persen) { return Math.round(persen * 100) + '%'; }
+
+  /**
+   * Stiker pencapaian hemat bulanan.
+   * d = { bulanLabel, sisa, persen, appName }; opts.hideAmount = tampilkan persen saja tanpa rupiah.
+   */
+  function drawAchievement(ctx, d, opts) {
+    const c = colors(opts);
+    const px = (n) => Math.round(n * K);
+    const font = (w, size) => w + ' ' + px(size) + 'px ' + FONT;
+    ctx.save();
+    ctx.shadowColor = opts.dark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.35)';
+    ctx.shadowBlur = px(18);
+    ctx.textBaseline = 'alphabetic';
+    const X = MARGIN, R = W - MARGIN;
+    const blockH = px(120) + px(130) + px(190) + px(90) + px(150) + px(150);
+    let y = H - 140 - blockH;
+
+    ctx.fillStyle = c.soft;
+    ctx.font = font(700, 40);
+    ctx.letterSpacing = px(6) + 'px';
+    ctx.fillText(d.bulanLabel.toUpperCase(), X, y + px(40));
+    ctx.letterSpacing = '0px';
+    y += px(120);
+    ctx.fillStyle = c.ink;
+    ctx.font = font(800, 64);
+    ctx.fillText('🏆 Berhasil hemat!', X, y + px(50), R - X);
+    y += px(130);
+    ctx.fillStyle = c.soft;
+    ctx.font = font(600, 46);
+    ctx.fillText(opts.hideAmount ? 'Pemasukan yang tersisa' : 'Masih sisa', X, y - px(10));
+    ctx.fillStyle = c.ink;
+    ctx.font = font(800, 150);
+    ctx.fillText(opts.hideAmount ? pct(d.persen) : short(d.sisa), X, y + px(150));
+    y += px(190);
+    ctx.fillStyle = c.soft;
+    ctx.font = font(600, 44);
+    ctx.fillText(opts.hideAmount ? 'dari total pemasukan' : pct(d.persen) + ' dari total pemasukan', X, y + px(40), R - X);
+    y += px(90);
+
+    const barH = px(30);
+    ctx.shadowBlur = 0;
+    roundRect(ctx, X, y, R - X, barH, barH / 2);
+    ctx.fillStyle = c.track;
+    ctx.fill();
+    roundRect(ctx, X, y, Math.max(barH, (R - X) * Math.min(1, d.persen)), barH, barH / 2);
+    ctx.fillStyle = c.fill;
+    ctx.fill();
+    ctx.shadowBlur = px(18);
+    y += px(60);
+    ctx.fillStyle = c.ink;
+    ctx.font = font(600, 44);
+    ctx.fillText(praiseLine(d.persen), X, y + px(50), R - X);
+    y += px(150);
+
+    drawFooter(ctx, d.appName, opts, X, y);
     ctx.restore();
   }
 
@@ -168,14 +251,18 @@
     return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Gagal membuat gambar'))), 'image/png'));
   }
 
-  /** Buat kanvas. mode: 'final' (latar + stiker) atau 'sticker' (transparan). */
+  /**
+   * Buat kanvas. mode: 'final' (latar + stiker) atau 'sticker' (transparan).
+   * opts.kind: 'rekap' (bawaan) atau 'hemat' (stiker pencapaian).
+   */
   async function render(d, opts, mode) {
     await ready();
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const ctx = c.getContext('2d');
     if (mode === 'final') drawBackground(ctx, opts.photo, opts.dark);
-    drawSticker(ctx, d, opts);
+    if (opts.kind === 'hemat') drawAchievement(ctx, d, opts);
+    else drawSticker(ctx, d, opts);
     return c;
   }
 
@@ -190,5 +277,5 @@
     });
   }
 
-  root.HBShare = { render, toBlob, loadPhoto, funnyLine, W, H };
+  root.HBShare = { render, toBlob, loadPhoto, funnyLine, praiseLine, W, H };
 })(this);
